@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Editor } from './editor'
 import { Plus, X, Save, FileDown, Upload, Play, Loader2 } from 'lucide-react'
 import * as YAML from 'yaml'
+import { PromptLibrary } from './prompt-library'
 
 interface Tab {
   id: string
@@ -11,6 +12,7 @@ interface Tab {
   content: string
   result?: string
   isLoading?: boolean
+  isLibrary?: boolean
 }
 
 interface RunPromptResponse {
@@ -23,6 +25,7 @@ interface RunPromptResponse {
 
 export function Tabs() {
   const [tabs, setTabs] = useState<Tab[]>([
+    { id: 'library', name: 'Library', content: '', isLibrary: true },
     { id: '1', name: 'New Prompt', content: '' }
   ])
   const [activeTab, setActiveTab] = useState('1')
@@ -111,26 +114,27 @@ export function Tabs() {
 
   const savePrompt = async () => {
     const activePrompt = tabs.find(tab => tab.id === activeTab)
-    if (!activePrompt) return
+    if (!activePrompt || activePrompt.isLibrary) return
 
-    const promptContent = activePrompt.content
     const metadata = {
       created: new Date().toISOString(),
       model: localStorage.getItem('selected_model') || 'default-model',
       ...JSON.parse(localStorage.getItem('model_config') || '{}')
     }
 
-    const fileContent = `---\n${YAML.stringify(metadata)}---\n\n${promptContent}`
-    
-    const blob = new Blob([fileContent], { type: 'text/markdown' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${activePrompt.name}.prompt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    try {
+      await fetch('/api/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: activePrompt.name,
+          content: activePrompt.content,
+          metadata
+        })
+      })
+    } catch (error) {
+      console.error('Failed to save prompt:', error)
+    }
   }
 
   const exportResult = () => {
@@ -182,95 +186,108 @@ export function Tabs() {
     input.click()
   }
 
+  const handlePromptSelect = (prompt: { name: string; content: string; metadata: any }) => {
+    const newId = String(tabs.length)
+    setTabs([...tabs, { 
+      id: newId, 
+      name: prompt.name,
+      content: prompt.content
+    }])
+    setActiveTab(newId)
+
+    // Restore model settings if present
+    if (prompt.metadata.model) {
+      localStorage.setItem('selected_model', prompt.metadata.model)
+    }
+    const modelConfig = { ...prompt.metadata }
+    delete modelConfig.model
+    delete modelConfig.created
+    localStorage.setItem('model_config', JSON.stringify(modelConfig))
+  }
+
   const activePrompt = tabs.find(tab => tab.id === activeTab)
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center border-b px-2">
-        <div className="flex-1 flex items-center space-x-2 overflow-x-auto">
-          {tabs.map(tab => (
-            <div
-              key={tab.id}
-              className={`group flex items-center space-x-2 px-3 py-2 cursor-pointer ${
-                activeTab === tab.id ? 'border-b-2 border-primary' : ''
-              }`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <span>{tab.name}</span>
-              {tabs.length > 1 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeTab(tab.id)
-                  }}
-                  className="opacity-0 group-hover:opacity-100"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center space-x-2 p-2">
-          <button 
-            onClick={runPrompt} 
-            className="p-1 hover:bg-secondary rounded"
-            disabled={activePrompt?.isLoading}
-            title="Run Prompt (Execute)"
+      <div className="flex items-center border-b border-gray-200 dark:border-gray-800 px-2">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`px-4 py-2 ${
+              activeTab === tab.id
+                ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                : 'text-gray-600 dark:text-gray-300'
+            }`}
+            onClick={() => setActiveTab(tab.id)}
           >
-            {activePrompt?.isLoading ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              <Play size={20} />
+            {tab.name}
+            {!tab.isLibrary && tabs.length > 2 && (
+              <span
+                className="ml-2 hover:text-red-500"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  removeTab(tab.id)
+                }}
+              >
+                ×
+              </span>
             )}
           </button>
-          <button 
-            onClick={addTab} 
-            className="p-1 hover:bg-secondary rounded"
-            title="New Prompt Tab"
+        ))}
+        <button
+          className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+          onClick={addTab}
+          title="New Prompt"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+        <div className="flex-1" />
+        <div className="space-x-2">
+          <button
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+            onClick={savePrompt}
+            title="Save Prompt"
           >
-            <Plus size={20} />
+            <Save className="w-5 h-5" />
           </button>
-          <button 
-            onClick={savePrompt} 
-            className="p-1 hover:bg-secondary rounded"
-            title="Save Prompt to File"
-          >
-            <Save size={20} />
-          </button>
-          <button 
-            onClick={loadPrompt} 
-            className="p-1 hover:bg-secondary rounded"
-            title="Load Prompt from File"
-          >
-            <Upload size={20} />
-          </button>
-          <button 
+          <button
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
             onClick={exportResult}
-            className="p-1 hover:bg-secondary rounded"
-            disabled={!activePrompt?.result}
-            title="Export Result to File"
+            title="Export Result"
           >
-            <FileDown size={20} />
+            <FileDown className="w-5 h-5" />
+          </button>
+          <button
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+            onClick={loadPrompt}
+            title="Load Prompt"
+          >
+            <Upload className="w-5 h-5" />
           </button>
         </div>
       </div>
-      
-      <div className="flex-1 flex flex-col">
-        <div className={`flex-1 ${activePrompt?.result ? 'h-1/2' : 'h-full'}`}>
-          <Editor
-            value={activePrompt?.content || ''}
-            onChange={(value) => updateTabContent(activeTab, value || '')}
-          />
-        </div>
-        {activePrompt?.result && (
-          <div className="h-1/2 border-t">
-            <Editor
-              value={activePrompt.result}
-              onChange={() => {}}
-              readOnly
-              language={activePrompt.result.startsWith('{') ? 'json' : 'markdown'}
-            />
+
+      <div className="flex-1 overflow-hidden">
+        {activePrompt?.isLibrary ? (
+          <PromptLibrary onPromptSelect={handlePromptSelect} />
+        ) : (
+          <div className="flex-1 flex flex-col">
+            <div className={`flex-1 ${activePrompt?.result ? 'h-1/2' : 'h-full'}`}>
+              <Editor
+                content={activePrompt?.content || ''}
+                onChange={(content) => updateTabContent(activeTab, content)}
+              />
+            </div>
+            {activePrompt?.result && (
+              <div className="h-1/2 border-t">
+                <Editor
+                  content={activePrompt.result}
+                  onChange={() => {}}
+                  readOnly
+                  language={activePrompt.result.startsWith('{') ? 'json' : 'markdown'}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

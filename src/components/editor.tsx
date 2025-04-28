@@ -1,16 +1,16 @@
 'use client'
 
-import { Editor as MonacoEditor } from '@monaco-editor/react'
+import MonacoEditor from '@monaco-editor/react'
 import { useTheme } from 'next-themes'
 
 interface EditorProps {
-  value: string
-  onChange: (value: string | undefined) => void
+  content: string
+  onChange: (content: string) => void
   language?: 'markdown' | 'json'
   readOnly?: boolean
 }
 
-export function Editor({ value, onChange, language = 'markdown', readOnly = false }: EditorProps) {
+export function Editor({ content, onChange, language = 'markdown', readOnly = false }: EditorProps) {
   const { theme } = useTheme()
 
   return (
@@ -18,8 +18,8 @@ export function Editor({ value, onChange, language = 'markdown', readOnly = fals
       height="100%"
       language={language}
       theme={theme === 'dark' ? 'vs-dark' : 'light'}
-      value={value}
-      onChange={onChange}
+      value={content}
+      onChange={value => onChange(value || '')}
       options={{
         minimap: { enabled: false },
         lineNumbers: 'on',

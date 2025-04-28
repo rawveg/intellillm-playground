@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { listPrompts, savePrompt } from '@/lib/promptUtils'
+import { writeFile } from 'fs/promises'
+import path from 'path'
 
 export async function GET() {
   try {
@@ -13,9 +15,17 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const { name, content, metadata } = await request.json()
-    await savePrompt(name, content, metadata)
+    
+    const promptsDir = '/app/prompts'
+    const fileName = path.join(promptsDir, `${name}.prompt`)
+    
+    const fileContent = `---\n${JSON.stringify(metadata, null, 2)}\n---\n\n${content}`
+    
+    await writeFile(fileName, fileContent, 'utf-8')
+    
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error('Failed to save prompt:', error)
     return NextResponse.json({ error: 'Failed to save prompt' }, { status: 500 })
   }
 }

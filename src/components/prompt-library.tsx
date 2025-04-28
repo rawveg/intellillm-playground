@@ -56,7 +56,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-background">
       <div className="p-4 border-b dark:border-gray-800">
         <h2 className="text-lg font-semibold">Prompt Library</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">

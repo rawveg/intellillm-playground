@@ -116,6 +116,10 @@ export function Tabs() {
     const activePrompt = tabs.find(tab => tab.id === activeTab)
     if (!activePrompt || activePrompt.isLibrary) return
 
+    // Prompt for name
+    const promptName = window.prompt('Enter a name for your prompt:', activePrompt.name)
+    if (!promptName) return // User cancelled
+
     const metadata = {
       created: new Date().toISOString(),
       model: localStorage.getItem('selected_model') || 'default-model',
@@ -123,17 +127,27 @@ export function Tabs() {
     }
 
     try {
-      await fetch('/api/prompts', {
+      const response = await fetch('/api/prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: activePrompt.name,
+          name: promptName,
           content: activePrompt.content,
           metadata
         })
       })
+
+      if (!response.ok) {
+        throw new Error('Failed to save prompt')
+      }
+
+      // Update the tab name after successful save
+      setTabs(tabs.map(tab =>
+        tab.id === activeTab ? { ...tab, name: promptName } : tab
+      ))
     } catch (error) {
       console.error('Failed to save prompt:', error)
+      alert('Failed to save prompt. Please try again.')
     }
   }
 
@@ -155,31 +169,41 @@ export function Tabs() {
   const loadPrompt = () => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.prompt,.md'
+    input.accept = '.prompt'
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
 
-      const text = await file.text()
-      const [, frontmatter, content] = text.split('---')
-      
-      if (frontmatter) {
-        const metadata = YAML.parse(frontmatter)
-        if (metadata.model) {
-          localStorage.setItem('selected_model', metadata.model)
-        }
-        // Store model configuration
-        const modelConfig = { ...metadata }
-        delete modelConfig.model
-        delete modelConfig.created
-        localStorage.setItem('model_config', JSON.stringify(modelConfig))
+      const content = await file.text()
+      const [_, frontmatter, ...contentParts] = content.split('---\n')
+      const metadata = frontmatter ? YAML.parse(frontmatter) : {}
+      const promptContent = contentParts.join('---\n').trim()
+
+      // Check if we already have this prompt open
+      const existingTab = tabs.find(tab => 
+        tab.name === file.name.replace(/\.prompt$/, '') && 
+        tab.content === promptContent
+      )
+
+      if (existingTab) {
+        setActiveTab(existingTab.id)
+        return
       }
+
+      // Restore model settings if present
+      if (metadata.model) {
+        localStorage.setItem('selected_model', metadata.model)
+      }
+      const modelConfig = { ...metadata }
+      delete modelConfig.model
+      delete modelConfig.created
+      localStorage.setItem('model_config', JSON.stringify(modelConfig))
 
       const newId = String(tabs.length + 1)
       setTabs([...tabs, { 
         id: newId, 
-        name: file.name.replace(/\.[^/.]+$/, ''),
-        content: content.trim()
+        name: file.name.replace(/\.prompt$/, ''),
+        content: promptContent
       }])
       setActiveTab(newId)
     }
@@ -187,6 +211,18 @@ export function Tabs() {
   }
 
   const handlePromptSelect = (prompt: { name: string; content: string; metadata: any }) => {
+    // Check if we already have this prompt open
+    const existingTab = tabs.find(tab => 
+      tab.name === prompt.name && tab.content === prompt.content
+    )
+
+    if (existingTab) {
+      // If it exists, just switch to that tab
+      setActiveTab(existingTab.id)
+      return
+    }
+
+    // Otherwise create a new tab
     const newId = String(tabs.length)
     setTabs([...tabs, { 
       id: newId, 
@@ -209,40 +245,53 @@ export function Tabs() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center border-b border-gray-200 dark:border-gray-800 px-2">
-        {tabs.map(tab => (
+      <div className="flex items-center border-b px-2 bg-background relative z-10">
+        <div className="flex-1 flex items-center">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              className={`px-4 py-2 ${
+                activeTab === tab.id
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-primary'
+                  : 'text-gray-600 dark:text-gray-300'
+              }`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.name}
+              {!tab.isLibrary && tabs.length > 2 && (
+                <span
+                  className="ml-2 hover:text-red-500"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removeTab(tab.id)
+                  }}
+                >
+                  ×
+                </span>
+              )}
+            </button>
+          ))}
           <button
-            key={tab.id}
-            className={`px-4 py-2 ${
-              activeTab === tab.id
-                ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-                : 'text-gray-600 dark:text-gray-300'
-            }`}
-            onClick={() => setActiveTab(tab.id)}
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+            onClick={addTab}
+            title="New Prompt"
           >
-            {tab.name}
-            {!tab.isLibrary && tabs.length > 2 && (
-              <span
-                className="ml-2 hover:text-red-500"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  removeTab(tab.id)
-                }}
-              >
-                ×
-              </span>
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={runPrompt}
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+            disabled={activePrompt?.isLoading}
+            title="Run Prompt"
+          >
+            {activePrompt?.isLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Play className="w-5 h-5" />
             )}
           </button>
-        ))}
-        <button
-          className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
-          onClick={addTab}
-          title="New Prompt"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-        <div className="flex-1" />
-        <div className="space-x-2">
           <button
             className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
             onClick={savePrompt}
@@ -267,21 +316,23 @@ export function Tabs() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 relative">
         {activePrompt?.isLibrary ? (
-          <PromptLibrary onPromptSelect={handlePromptSelect} />
+          <div className="absolute inset-0">
+            <PromptLibrary onPromptSelect={handlePromptSelect} />
+          </div>
         ) : (
-          <div className="flex-1 flex flex-col">
+          <div className="absolute inset-0 flex flex-col">
             <div className={`flex-1 ${activePrompt?.result ? 'h-1/2' : 'h-full'}`}>
               <Editor
-                content={activePrompt?.content || ''}
-                onChange={(content) => updateTabContent(activeTab, content)}
+                value={activePrompt?.content || ''}
+                onChange={(value) => updateTabContent(activeTab, value || '')}
               />
             </div>
             {activePrompt?.result && (
               <div className="h-1/2 border-t">
                 <Editor
-                  content={activePrompt.result}
+                  value={activePrompt.result}
                   onChange={() => {}}
                   readOnly
                   language={activePrompt.result.startsWith('{') ? 'json' : 'markdown'}

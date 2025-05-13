@@ -5,6 +5,8 @@ import { Editor } from './editor'
 import { Plus, X, Save, FileDown, Upload, Play, Loader2 } from 'lucide-react'
 import * as YAML from 'yaml'
 import { PromptLibrary } from './prompt-library'
+import * as RadixTabs from '@radix-ui/react-tabs';
+import ReactMarkdown from 'react-markdown';
 
 interface Tab {
   id: string
@@ -29,6 +31,7 @@ export function Tabs() {
     { id: '1', name: 'New Prompt', content: '' }
   ])
   const [activeTab, setActiveTab] = useState('1')
+  const [activeResultView, setActiveResultView] = useState<'text' | 'markdown'>('text');
 
   const addTab = () => {
     const newId = String(tabs.length + 1)
@@ -330,13 +333,38 @@ export function Tabs() {
               />
             </div>
             {activePrompt?.result && (
-              <div className="h-1/2 border-t">
-                <Editor
-                  value={activePrompt.result}
-                  onChange={() => {}}
-                  readOnly
-                  language={activePrompt.result.startsWith('{') ? 'json' : 'markdown'}
-                />
+              <div className="h-1/2 border-t flex flex-col"> 
+                <RadixTabs.Root 
+                  value={activeResultView} 
+                  onValueChange={(value) => setActiveResultView(value as 'text' | 'markdown')}
+                  className="flex-1 flex flex-col overflow-hidden" 
+                >
+                  <RadixTabs.List className="flex-shrink-0 border-b px-2">
+                    <RadixTabs.Trigger 
+                      value="text" 
+                      className="px-3 py-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary -mb-px focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                    >
+                      Text
+                    </RadixTabs.Trigger>
+                    <RadixTabs.Trigger 
+                      value="markdown" 
+                      className="px-3 py-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary -mb-px focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                    >
+                      Markdown
+                    </RadixTabs.Trigger>
+                  </RadixTabs.List>
+                  <RadixTabs.Content value="text" className="flex-1 overflow-auto"> 
+                    <Editor
+                      value={activePrompt.result}
+                      onChange={() => {}} // Read-only, so no-op
+                      readOnly
+                      language={activePrompt.result.startsWith('{') ? 'json' : 'markdown'}
+                    />
+                  </RadixTabs.Content>
+                  <RadixTabs.Content value="markdown" className="flex-1 overflow-auto p-4 bg-background">
+                    <ReactMarkdown>{activePrompt.result || ''}</ReactMarkdown>
+                  </RadixTabs.Content>
+                </RadixTabs.Root>
               </div>
             )}
           </div>

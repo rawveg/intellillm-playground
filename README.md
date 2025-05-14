@@ -7,7 +7,7 @@ A lightweight, modern LLM playground for testing prompts against OpenRouter-host
 - Modern, sleek interface with multi-tab prompt editing
 - Support for all OpenRouter models with dynamic configuration
 - Export and import prompts with metadata
-- Markdown and JSON rendering for outputs
+- Tabbed result view with raw text (supporting JSON highlighting) and rendered Markdown outputs
 - Theme support (light/dark/system)
 - Docker containerized for easy deployment
 
@@ -41,4 +41,3 @@ tags: [example]
 # Prompt Title
 
 Your prompt content here...
-```

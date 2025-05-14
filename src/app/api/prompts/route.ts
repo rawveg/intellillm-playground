@@ -14,12 +14,24 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name, content, metadata } = await request.json()
+    const { name, content, systemPrompt, metadata } = await request.json()
     
     const promptsDir = '/app/prompts'
     const fileName = path.join(promptsDir, `${name}.prompt`)
     
-    const fileContent = `---\n${JSON.stringify(metadata, null, 2)}\n---\n\n${content}`
+    // Build file content with system prompt if present
+    let fileContent = `---
+${JSON.stringify(metadata, null, 2)}
+---
+
+${content}`
+    
+    if (systemPrompt) {
+      fileContent += `
+
+## System Prompt
+${systemPrompt}`
+    }
     
     await writeFile(fileName, fileContent, 'utf-8')
     

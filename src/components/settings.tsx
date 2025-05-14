@@ -66,27 +66,51 @@ export function Settings({
       setSelectedModel(storedModel)
     }
 
-    const storedConfig = localStorage.getItem('model_config')
-    const storedFlags = localStorage.getItem('model_config_modified')
+    // Listen for model changes from other components
+    const handleModelChange = (event: CustomEvent<{ model: string }>) => {
+      setSelectedModel(event.detail.model)
+    }
+
+    const handleModelConfigChange = (event: CustomEvent<{ config: Partial<ModelConfig> }>) => {
+      setModelConfig(config => ({
+        ...defaultConfig,
+        ...event.detail.config
+      }))
+      // Update modified flags
+      const newFlags = { ...modifiedFlags }
+      Object.keys(event.detail.config).forEach(key => {
+        if (key in newFlags) {
+          newFlags[key as keyof ModifiedFlags] = true
+        }
+      })
+      setModifiedFlags(newFlags)
+    }
+
+    window.addEventListener('modelChange', handleModelChange as EventListener)
+    window.addEventListener('modelConfigChange', handleModelConfigChange as EventListener)
     
-    if (storedConfig) {
-      try {
-        const parsedConfig = JSON.parse(storedConfig)
+    return () => {
+      window.removeEventListener('modelChange', handleModelChange as EventListener)
+      window.removeEventListener('modelConfigChange', handleModelConfigChange as EventListener)
+    }
+
+    try {
+      const storedConfig = localStorage.getItem('model_config')
+      if (storedConfig) {
+        const parsedConfig = JSON.parse(storedConfig as string) as Partial<ModelConfig>
         setModelConfig({
           ...defaultConfig,
           ...parsedConfig
         })
-      } catch (e) {
-        console.error('Failed to parse stored model config:', e)
       }
-    }
 
-    if (storedFlags) {
-      try {
-        setModifiedFlags(JSON.parse(storedFlags))
-      } catch (e) {
-        console.error('Failed to parse stored modified flags:', e)
+      const storedFlags = localStorage.getItem('model_config_modified')
+      if (storedFlags) {
+        const parsedFlags = JSON.parse(storedFlags as string) as ModifiedFlags
+        setModifiedFlags(parsedFlags)
       }
+    } catch (e) {
+      console.error('Failed to parse stored settings:', e)
     }
   }, [])
 

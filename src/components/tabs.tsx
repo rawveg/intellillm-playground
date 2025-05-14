@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Editor } from './editor'
 import { Plus, X, Save, FileDown, Upload, Play, Loader2 } from 'lucide-react'
 import * as YAML from 'yaml'
@@ -12,9 +12,14 @@ interface Tab {
   id: string
   name: string
   content: string
+  systemPrompt?: string
   result?: string
   isLoading?: boolean
   isLibrary?: boolean
+  metadata?: {
+    model?: string
+    [key: string]: any
+  }
 }
 
 interface RunPromptResponse {
@@ -26,12 +31,52 @@ interface RunPromptResponse {
 }
 
 export function Tabs() {
+  const [systemPromptExpanded, setSystemPromptExpanded] = useState(false)
   const [tabs, setTabs] = useState<Tab[]>([
     { id: 'library', name: 'Library', content: '', isLibrary: true },
     { id: '1', name: 'New Prompt', content: '' }
   ])
   const [activeTab, setActiveTab] = useState('1')
+
+  // Update model and settings when active tab changes
+  const updateModelSettings = (tabId: string) => {
+    const activePrompt = tabs.find(tab => tab.id === tabId)
+    if (!activePrompt) return
+
+    // Get stored settings from localStorage
+    const storedSettings = localStorage.getItem('model_config')
+    const currentSettings = storedSettings ? JSON.parse(storedSettings) : {}
+
+    // Get current model
+    const storedModel = localStorage.getItem('selected_model')
+
+    // Only update if the settings are different
+    if (activePrompt.metadata?.model && activePrompt.metadata.model !== storedModel) {
+      localStorage.setItem('selected_model', activePrompt.metadata.model)
+      window.dispatchEvent(new CustomEvent('modelChange', { 
+        detail: { model: activePrompt.metadata.model } 
+      }))
+    }
+
+    // Update other model settings
+    const newSettings = { ...activePrompt.metadata }
+    delete newSettings.model
+    delete newSettings.created
+
+    // Only update if settings have changed
+    if (JSON.stringify(newSettings) !== JSON.stringify(currentSettings)) {
+      localStorage.setItem('model_config', JSON.stringify(newSettings))
+      window.dispatchEvent(new CustomEvent('modelConfigChange', { 
+        detail: { config: newSettings } 
+      }))
+    }
+  }
   const [activeResultView, setActiveResultView] = useState<'text' | 'markdown'>('text');
+
+  // Update settings whenever active tab changes
+  useEffect(() => {
+    updateModelSettings(activeTab)
+  }, [activeTab, tabs]);
 
   const addTab = () => {
     const newId = String(tabs.length + 1)
@@ -82,6 +127,10 @@ export function Tabs() {
         body: JSON.stringify({
           model: selectedModel,
           messages: [
+            ...(activePrompt.systemPrompt ? [{
+              role: 'system',
+              content: activePrompt.systemPrompt
+            }] : []),
             {
               role: 'user',
               content: activePrompt.content
@@ -123,31 +172,51 @@ export function Tabs() {
     const promptName = window.prompt('Enter a name for your prompt:', activePrompt.name)
     if (!promptName) return // User cancelled
 
+    // Get current model and settings
+    const currentModel = localStorage.getItem('selected_model')
+    const currentConfig = JSON.parse(localStorage.getItem('model_config') || '{}')
+
+    // Combine with existing metadata or create new
     const metadata = {
       created: new Date().toISOString(),
-      model: localStorage.getItem('selected_model') || 'default-model',
-      ...JSON.parse(localStorage.getItem('model_config') || '{}')
+      model: currentModel || 'default-model',
+      ...currentConfig
     }
 
     try {
+      const promptData = {
+        name: promptName,
+        content: activePrompt.content,
+        systemPrompt: activePrompt.systemPrompt,
+        metadata
+      }
+
       const response = await fetch('/api/prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: promptName,
-          content: activePrompt.content,
-          metadata
-        })
+        body: JSON.stringify(promptData)
       })
 
       if (!response.ok) {
         throw new Error('Failed to save prompt')
       }
 
-      // Update the tab name after successful save
+      // Update the tab with new name and metadata
       setTabs(tabs.map(tab =>
-        tab.id === activeTab ? { ...tab, name: promptName } : tab
+        tab.id === activeTab ? {
+          ...tab,
+          name: promptName,
+          metadata,
+          systemPrompt: activePrompt.systemPrompt // Preserve system prompt
+        } : tab
       ))
+
+      // Update localStorage to match the saved state
+      localStorage.setItem('selected_model', metadata.model)
+      const modelConfig = { ...metadata }
+      delete modelConfig.model
+      delete modelConfig.created
+      localStorage.setItem('model_config', JSON.stringify(modelConfig))
     } catch (error) {
       console.error('Failed to save prompt:', error)
       alert('Failed to save prompt. Please try again.')
@@ -213,35 +282,56 @@ export function Tabs() {
     input.click()
   }
 
-  const handlePromptSelect = (prompt: { name: string; content: string; metadata: any }) => {
+  const handlePromptSelect = (prompt: { name: string; content: string; systemPrompt?: string; metadata: any }) => {
+    // Expand system prompt section if the prompt has a system prompt
+    setSystemPromptExpanded(!!prompt.systemPrompt)
+    
     // Check if we already have this prompt open
     const existingTab = tabs.find(tab => 
-      tab.name === prompt.name && tab.content === prompt.content
+      tab.name === prompt.name && 
+      tab.content === prompt.content
     )
 
     if (existingTab) {
-      // If it exists, just switch to that tab
+      // Update metadata of existing tab
+      setTabs(tabs.map(tab =>
+        tab.id === existingTab.id ? { ...tab, metadata: prompt.metadata } : tab
+      ))
       setActiveTab(existingTab.id)
-      return
+    } else {
+      // Create new tab
+      const newId = String(tabs.length)
+      setTabs([...tabs, { 
+        id: newId, 
+        name: prompt.name,
+        content: prompt.content,
+        systemPrompt: prompt.systemPrompt,
+        metadata: prompt.metadata
+      }])
+      setActiveTab(newId)
     }
-
-    // Otherwise create a new tab
-    const newId = String(tabs.length)
-    setTabs([...tabs, { 
-      id: newId, 
-      name: prompt.name,
-      content: prompt.content
-    }])
-    setActiveTab(newId)
 
     // Restore model settings if present
-    if (prompt.metadata.model) {
+    if (prompt.metadata?.model) {
       localStorage.setItem('selected_model', prompt.metadata.model)
+      // Trigger model update in Settings component
+      window.dispatchEvent(new CustomEvent('modelChange', { 
+        detail: { model: prompt.metadata.model } 
+      }))
     }
+
+    // Update model config settings
     const modelConfig = { ...prompt.metadata }
     delete modelConfig.model
     delete modelConfig.created
-    localStorage.setItem('model_config', JSON.stringify(modelConfig))
+
+    // Only update if there are actual config settings
+    if (Object.keys(modelConfig).length > 0) {
+      localStorage.setItem('model_config', JSON.stringify(modelConfig))
+      window.dispatchEvent(new CustomEvent('modelConfigChange', { 
+        detail: { config: modelConfig } 
+      }))
+    }
   }
 
   const activePrompt = tabs.find(tab => tab.id === activeTab)
@@ -326,11 +416,60 @@ export function Tabs() {
           </div>
         ) : (
           <div className="absolute inset-0 flex flex-col">
-            <div className={`flex-1 ${activePrompt?.result ? 'h-1/2' : 'h-full'}`}>
-              <Editor
-                value={activePrompt?.content || ''}
-                onChange={(value) => updateTabContent(activeTab, value || '')}
-              />
+            <div className={`flex-1 ${activePrompt?.result ? 'h-1/2' : 'h-full'} flex flex-col`}>
+              <div className="flex-1 min-h-0">
+                <Editor
+                  value={activePrompt?.content || ''}
+                  onChange={(value) => updateTabContent(activeTab, value || '')}
+                />
+              </div>
+              
+              {/* System Prompt Section */}
+              <div className="border-t flex flex-col">
+                <button
+                  onClick={() => {
+                    console.log('Current state:', {
+                      systemPromptExpanded,
+                      hasSystemPrompt: !!activePrompt?.systemPrompt,
+                      systemPromptContent: activePrompt?.systemPrompt
+                    })
+                    
+                    // Always toggle the expanded state
+                    const newExpandedState = !systemPromptExpanded
+                    setSystemPromptExpanded(newExpandedState)
+                    
+                    // Handle system prompt content
+                    if (!activePrompt?.systemPrompt && newExpandedState) {
+                      // Create empty system prompt when expanding
+                      setTabs(tabs.map(tab =>
+                        tab.id === activeTab ? { ...tab, systemPrompt: '' } : tab
+                      ))
+                    } else if (activePrompt?.systemPrompt?.trim() === '' && !newExpandedState) {
+                      // Remove empty system prompt when collapsing
+                      setTabs(tabs.map(tab =>
+                        tab.id === activeTab ? { ...tab, systemPrompt: undefined } : tab
+                      ))
+                    }
+                  }}
+                  className="w-full flex items-center px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  <span className="mr-2">{systemPromptExpanded ? '▼' : '▶'}</span>
+                  System Prompt
+                </button>
+                {systemPromptExpanded && (
+                  <div className="flex-1 min-h-[200px]">
+                    <Editor
+                      value={activePrompt?.systemPrompt || ''}
+                      onChange={(value) => {
+                        console.log('Editor onChange:', { value })
+                        setTabs(tabs.map(tab =>
+                          tab.id === activeTab ? { ...tab, systemPrompt: value || undefined } : tab
+                        ))
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             {activePrompt?.result && (
               <div className="h-1/2 border-t flex flex-col"> 
@@ -362,7 +501,7 @@ export function Tabs() {
                     />
                   </RadixTabs.Content>
                   <RadixTabs.Content value="markdown" className="flex-1 overflow-auto p-4 bg-background">
-                    <ReactMarkdown>{activePrompt.result || ''}</ReactMarkdown>
+                    <ReactMarkdown className="markdown-content">{activePrompt.result || ''}</ReactMarkdown>
                   </RadixTabs.Content>
                 </RadixTabs.Root>
               </div>

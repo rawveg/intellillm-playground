@@ -28,7 +28,7 @@ export function Editor({ value, onChange, language = 'markdown', readOnly = fals
         lineNumbers: 'on',
         readOnly,
         wordWrap: 'on',
-        wrappingIndent: 'indent',
+        wrappingIndent: 'none',
         automaticLayout: true,
         scrollBeyondLastLine: false,
       }}

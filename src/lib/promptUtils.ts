@@ -19,10 +19,20 @@ export interface PromptFile {
   name: string
   metadata: PromptMetadata
   content: string
+  systemPrompt?: string
 }
 
-export async function savePrompt(name: string, content: string, metadata: PromptMetadata): Promise<void> {
-  const fileContent = `---\n${YAML.stringify(metadata)}---\n\n${content}`
+export async function savePrompt(name: string, content: string, metadata: PromptMetadata, systemPrompt?: string): Promise<void> {
+  let fileContent = `---
+${YAML.stringify(metadata)}---
+
+${content}`
+  if (systemPrompt) {
+    fileContent += `
+
+## System Prompt
+${systemPrompt}`
+  }
   const filePath = path.join(PROMPTS_DIR, `${name}.prompt`)
   await fs.promises.writeFile(filePath, fileContent, 'utf-8')
 }
@@ -32,10 +42,14 @@ export async function loadPrompt(name: string): Promise<PromptFile> {
   const content = await fs.promises.readFile(filePath, 'utf-8')
   const [, frontmatter, promptContent] = content.split('---')
   
+  // Split content by system prompt marker if it exists
+  const [userPrompt, systemPrompt] = promptContent.split('## System Prompt').map(s => s.trim())
+  
   return {
     name: path.basename(name, '.prompt'),
     metadata: frontmatter ? YAML.parse(frontmatter) : {},
-    content: promptContent.trim()
+    content: userPrompt,
+    systemPrompt: systemPrompt || undefined
   }
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Laptop, RotateCcw } from 'lucide-react'
+import { Sun, Moon, Laptop, RotateCcw, Search } from 'lucide-react'
 
 interface ModelConfig {
   temperature: number
@@ -52,6 +52,7 @@ export function Settings({
   const [selectedModel, setSelectedModel] = useState<string>('')
   const [modelFilter, setModelFilter] = useState('')
   const [modelConfig, setModelConfig] = useState<ModelConfig>(defaultConfig)
+  const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
   const [modifiedFlags, setModifiedFlags] = useState<ModifiedFlags>({
     temperature: false,
     top_p: false,
@@ -64,6 +65,12 @@ export function Settings({
     const storedModel = localStorage.getItem('selected_model')
     if (storedModel) {
       setSelectedModel(storedModel)
+    }
+
+    // Load web search enabled state
+    const storedWebSearchEnabled = localStorage.getItem('web_search_enabled');
+    if (storedWebSearchEnabled) {
+      setWebSearchEnabled(storedWebSearchEnabled === 'true');
     }
 
     // Listen for model changes from other components
@@ -86,12 +93,18 @@ export function Settings({
       setModifiedFlags(newFlags)
     }
 
+    const handleWebSearchConfigChange = (event: CustomEvent<{ enabled: boolean }>) => {
+      setWebSearchEnabled(event.detail.enabled);
+    };
+
     window.addEventListener('modelChange', handleModelChange as EventListener)
     window.addEventListener('modelConfigChange', handleModelConfigChange as EventListener)
+    window.addEventListener('webSearchConfigChange', handleWebSearchConfigChange as EventListener);
     
     return () => {
       window.removeEventListener('modelChange', handleModelChange as EventListener)
       window.removeEventListener('modelConfigChange', handleModelConfigChange as EventListener)
+      window.removeEventListener('webSearchConfigChange', handleWebSearchConfigChange as EventListener);
     }
 
     try {
@@ -152,6 +165,14 @@ export function Settings({
       }
     }
   }, [selectedModel, models])
+
+  // Save webSearchEnabled to localStorage and dispatch event when it changes
+  useEffect(() => {
+    localStorage.setItem('web_search_enabled', String(webSearchEnabled));
+    window.dispatchEvent(new CustomEvent('webSearchConfigChange', {
+      detail: { enabled: webSearchEnabled }
+    }));
+  }, [webSearchEnabled]);
 
   // Update localStorage when config changes
   useEffect(() => {
@@ -282,6 +303,21 @@ export function Settings({
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Web Search Toggle */}
+        <div className="pt-4 pb-2"> 
+          <button
+            type="button"
+            onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+            className={`w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+              ${webSearchEnabled 
+                ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+                : 'bg-gray-300 text-gray-800 hover:bg-gray-400 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+              }`}
+          >
+            <Search size={16} className="mr-2" /> Web Search
+          </button>
         </div>
 
         {/* Model Configuration */}

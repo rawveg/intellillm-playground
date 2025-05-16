@@ -12,6 +12,13 @@ A lightweight, modern LLM playground for testing prompts against OpenRouter-host
 - Tabbed result view with raw text (supporting JSON highlighting) and rendered Markdown outputs
 - Theme support (light/dark/system)
 - Docker containerized for easy deployment
+- **Web Search Integration:**
+  - Augments LLM responses with real-time information from the web.
+  - When enabled in Settings, the system:
+    1. Uses an ancillary LLM call to generate relevant search terms from your prompt.
+    2. Queries the DuckDuckGo search engine (via the `/api/search` backend route using the `@pikisoft/duckduckgo-search` package).
+    3. Injects the top search result snippets into the context for the main LLM, providing it with up-to-date information.
+  - Easily toggled on/off via the "Web Search" button in the Settings panel.
 
 ## Getting Started
 

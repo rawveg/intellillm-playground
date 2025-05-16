@@ -7,6 +7,7 @@ import * as YAML from 'yaml'
 import { PromptLibrary } from './prompt-library'
 import * as RadixTabs from '@radix-ui/react-tabs';
 import ReactMarkdown from 'react-markdown';
+import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils';
 
 interface Tab {
   id: string
@@ -100,22 +101,183 @@ export function Tabs() {
   }
 
   const runPrompt = async () => {
-    const activePrompt = tabs.find(tab => tab.id === activeTab)
-    if (!activePrompt) return
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt) return;
 
-    // Set loading state
     setTabs(tabs.map(tab =>
-      tab.id === activeTab ? { ...tab, isLoading: true } : tab
-    ))
+      tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab // Clear previous result
+    ));
+
+    let searchResultsContext = '';
+    const isWebSearchEnabled = localStorage.getItem('web_search_enabled') === 'true';
+
+    if (isWebSearchEnabled && activePrompt.content.trim() !== '') {
+      try {
+        const selectedModel = localStorage.getItem('selected_model') || 'default_model_name'; 
+        const modelMaxContextTokens = getModelContextLimit(selectedModel);
+        
+        const userPromptTokens = estimateTokens(activePrompt.content);
+        const existingSystemPromptTokens = estimateTokens(activePrompt.systemPrompt || '');
+        const basePromptTokens = userPromptTokens + existingSystemPromptTokens;
+
+        const RESPONSE_AND_OVERHEAD_BUFFER = Math.floor(modelMaxContextTokens * 0.25); 
+        const SEARCH_CONTEXT_TOKEN_BUDGET = modelMaxContextTokens - basePromptTokens - RESPONSE_AND_OVERHEAD_BUFFER;
+
+        if (SEARCH_CONTEXT_TOKEN_BUDGET > 100) { // Only search if there's a reasonable budget
+          let searchQueryForDDG = activePrompt.content; // Default/fallback search query
+
+          try {
+            const apiKey = localStorage.getItem('openrouter_api_key');
+            const selectedModelForAncillaryCall = localStorage.getItem('selected_model') || 'openai/gpt-3.5-turbo'; // Or a preferred fast model
+            const modelConfigString = localStorage.getItem('model_config');
+            const modelConfigForAncillaryCall = modelConfigString ? JSON.parse(modelConfigString) : {};
+            
+            if (!apiKey) {
+              console.warn('[WebSearch] OpenRouter API key not found. Falling back to full prompt for search.');
+            } else {
+              const metaPromptForSearchQuery = `Based on the following user prompt, extract a concise set of search terms that would be effective for finding relevant information on the web. Focus on the core subject or topic the user wants to address. Return only the search terms, ideally 3-7 words. Do not add any commentary or explanation. Just return the search terms.
+
+User Prompt:
+"""
+${activePrompt.content}
+"""
+
+Search Terms:`;
+
+              const ancillaryMessages = [{ role: 'user', content: metaPromptForSearchQuery }];
+              
+              console.log(`[WebSearch] Ancillary LLM call to ${selectedModelForAncillaryCall} for search query generation.`);
+              const ancillaryResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json',
+                  'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
+                  'X-Title': typeof window !== 'undefined' ? document.title.slice(0,30) : 'Intellillm Playground',
+                },
+                body: JSON.stringify({
+                  model: selectedModelForAncillaryCall,
+                  messages: ancillaryMessages,
+                  ...modelConfigForAncillaryCall,
+                  max_tokens: 20, // Limit tokens for search query generation
+                  temperature: 0.2, // Lower temperature for more factual search terms
+                }),
+              });
+
+              if (ancillaryResponse.ok) {
+                const ancillaryData = await ancillaryResponse.json();
+                const llmGeneratedQuery = ancillaryData.choices?.[0]?.message?.content?.trim();
+                if (llmGeneratedQuery) {
+                  searchQueryForDDG = llmGeneratedQuery;
+                  console.log('[WebSearch] LLM generated search query:', searchQueryForDDG);
+                } else {
+                  console.warn('[WebSearch] LLM did not return a valid search query. Falling back to full prompt.');
+                }
+              } else {
+                console.warn(`[WebSearch] Ancillary LLM call failed (${ancillaryResponse.status}). Falling back to full prompt. Error:`, await ancillaryResponse.text());
+              }
+            }
+          } catch (e) {
+            console.error('[WebSearch] Error during ancillary LLM call for search query:', e);
+            // Fallback to activePrompt.content is already default
+          }
+
+          console.log(`[WebSearch] Final Budget: ${SEARCH_CONTEXT_TOKEN_BUDGET} tokens. Query for DDG: "${searchQueryForDDG}"`);
+          const searchApiResponse = await fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: searchQueryForDDG, limit: 5, backend: 'api' }), 
+          });
+
+          if (searchApiResponse.ok) {
+            const searchData = await searchApiResponse.json();
+            console.log('[WebSearch] Raw searchData from API:', searchData); // DEBUG
+
+            const fetchedSnippets: Array<{text: string, url: string}> | undefined = searchData?.searchResultsArray;
+
+            if (Array.isArray(fetchedSnippets) && fetchedSnippets.length > 0) {
+              console.log('[WebSearch] Fetched snippets:', fetchedSnippets); // DEBUG
+              let collectedSnippetsForPrompt = "";
+              let tokensUsedByAddedSearchSnippets = 0;
+              let resultsAddedCount = 0;
+              const MIN_RESULTS_TO_INCLUDE = 3;
+              const MAX_RESULTS_TO_INCLUDE = 10;
+
+              for (const snippet of fetchedSnippets) {
+                if (resultsAddedCount >= MAX_RESULTS_TO_INCLUDE) break;
+
+                if (snippet && typeof snippet.text === 'string' && typeof snippet.url === 'string') {
+                  const formattedSnippetText = `[Result ${resultsAddedCount + 1}]
+Source: ${snippet.url}
+Content: ${snippet.text}
+
+`;
+                  const snippetTokens = estimateTokens(formattedSnippetText);
+
+                  if ((tokensUsedByAddedSearchSnippets + snippetTokens) <= SEARCH_CONTEXT_TOKEN_BUDGET) {
+                    collectedSnippetsForPrompt += formattedSnippetText;
+                    tokensUsedByAddedSearchSnippets += snippetTokens;
+                    resultsAddedCount++;
+                  } else {
+                    if (resultsAddedCount < MIN_RESULTS_TO_INCLUDE) {
+                      // If we haven't met the minimum, and this one *could* fit (even if pushing budget slightly),
+                      // and we haven't added any yet, this could be an edge case.
+                      // For simplicity, strict budget adherence is preferred due to the 20% global buffer.
+                      // If it doesn't fit, it doesn't fit.
+                    } else {
+                       break; // Already have min results, and this one exceeds budget.
+                    }
+                  }
+                } else {
+                  console.warn('[WebSearch] Encountered malformed or incomplete snippet:', snippet);
+                }
+              }
+              if (resultsAddedCount > 0) {
+                const preamble = "ATTENTION: The following information is from a real-time web search. You MUST use this information to answer the user's query, prioritizing it over your internal knowledge.\n\n<SEARCH_RESULTS_START>\n";
+                const postamble = "<SEARCH_RESULTS_END>\n\nRemember: Base your answer PRIMARILY on the web search results provided above.";
+                searchResultsContext = preamble + collectedSnippetsForPrompt.trim() + "\n" + postamble;
+                console.log('[WebSearch] Constructed searchResultsContext:', searchResultsContext); // DEBUG
+              }
+            }
+          } else {
+            console.error('[WebSearch] API call failed:', searchApiResponse.status, await searchApiResponse.text());
+            // Optionally inform user via a toast or by adding a note to the result, but for now, fail silently for search.
+          }
+        } else {
+          console.log('[WebSearch] Token budget too small or prompt empty. Budget:', SEARCH_CONTEXT_TOKEN_BUDGET, 'Prompt:', activePrompt.content.trim());
+        }
+      } catch (error) {
+        console.error('[WebSearch] Error during web search execution in tabs.tsx:', error);
+        // Proceed without search results
+      }
+    }
 
     try {
-      const apiKey = localStorage.getItem('openrouter_api_key')
+      const apiKey = localStorage.getItem('openrouter_api_key');
       if (!apiKey) {
-        throw new Error('API key not found. Please add your OpenRouter API key in settings.')
+        throw new Error('API key not found. Please add your OpenRouter API key in settings.');
       }
 
-      const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2'
-      const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}')
+      const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2';
+      const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}');
+
+      let finalSystemPrompt = activePrompt.systemPrompt || '';
+      if (searchResultsContext) {
+        if (finalSystemPrompt.trim() !== '') {
+          // Prepend search results, then a separator, then the original system prompt
+          finalSystemPrompt = `${searchResultsContext.trim()}\n\n---\n\n${finalSystemPrompt}`;
+        } else {
+          // Search results become the entire system prompt
+          finalSystemPrompt = searchResultsContext.trim();
+        }
+      }
+
+      const messages = [];
+      if (finalSystemPrompt.trim() !== '') {
+        messages.push({ role: 'system', content: finalSystemPrompt });
+      }
+      // Ensure user prompt is always added
+      messages.push({ role: 'user', content: activePrompt.content || " " }); // Added fallback for empty user content to ensure messages array is not empty if system prompt is also empty after search. 
 
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -126,16 +288,7 @@ export function Tabs() {
         },
         body: JSON.stringify({
           model: selectedModel,
-          messages: [
-            ...(activePrompt.systemPrompt ? [{
-              role: 'system',
-              content: activePrompt.systemPrompt
-            }] : []),
-            {
-              role: 'user',
-              content: activePrompt.content
-            }
-          ],
+          messages,
           ...modelConfig
         })
       })

@@ -8,12 +8,15 @@ import { PromptLibrary } from './prompt-library'
 import * as RadixTabs from '@radix-ui/react-tabs';
 import ReactMarkdown from 'react-markdown';
 import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils';
+import { extractParameters, replaceParameters, ParameterInfo, extractParameterNames } from '@/lib/parameterUtils';
+import { ParameterModal } from './parameter-modal';
 
 interface Tab {
   id: string
   name: string
   content: string
   systemPrompt?: string
+  processedSystemPrompt?: string // For parameter substitution at runtime
   result?: string
   isLoading?: boolean
   isLibrary?: boolean
@@ -38,6 +41,11 @@ export function Tabs() {
     { id: '1', name: 'New Prompt', content: '' }
   ])
   const [activeTab, setActiveTab] = useState('1')
+  
+  // Parameter modal state
+  const [showParamModal, setShowParamModal] = useState(false);
+  const [activeParameters, setActiveParameters] = useState<ParameterInfo[]>([]);
+  const [parameterizedContent, setParameterizedContent] = useState<string>('');
 
   // Update model and settings when active tab changes
   const updateModelSettings = (tabId: string) => {
@@ -103,20 +111,118 @@ export function Tabs() {
   const runPrompt = async () => {
     const activePrompt = tabs.find(tab => tab.id === activeTab);
     if (!activePrompt) return;
+    
+    try {
+      // Check for parameters in both the main prompt and system prompt
+      const mainPromptParameters = extractParameters(activePrompt.content);
+      const systemPromptParameters = activePrompt.systemPrompt 
+        ? extractParameters(activePrompt.systemPrompt) 
+        : [];
+      
+      // Combine parameters from both prompts, removing duplicates by name
+      const allParameters = [...mainPromptParameters];
+      
+      // Add system prompt parameters if they don't already exist in main prompt
+      systemPromptParameters.forEach(sysParam => {
+        if (!allParameters.some(param => param.name === sysParam.name)) {
+          allParameters.push(sysParam);
+        }
+      });
+      
+      if (allParameters.length > 0) {
+        // If parameters exist, show the modal
+        setActiveParameters(allParameters);
+        setShowParamModal(true);
+        return;
+      }
+      
+      // If no parameters, proceed with the normal flow
+      await executePrompt(activePrompt.content);
+    } catch (error: unknown) {
+      // Handle parameter validation errors
+      if (error instanceof Error) {
+        if (error.name === 'ParameterValidationError') {
+          // Show error message to the user
+          setTabs(tabs.map(tab =>
+            tab.id === activeTab ? { 
+              ...tab, 
+              result: `Error in prompt parameters: ${error.message}\n\nPlease fix the parameter syntax in your prompt.`,
+              isLoading: false 
+            } : tab
+          ));
+        } else {
+          // Handle other errors
+          console.error('Error processing prompt parameters:', error);
+          setTabs(tabs.map(tab =>
+            tab.id === activeTab ? { 
+              ...tab, 
+              result: `An error occurred while processing your prompt: ${error.message}`,
+              isLoading: false 
+            } : tab
+          ));
+        }
+      } else {
+        // Handle non-Error objects
+        console.error('Unknown error processing prompt parameters:', error);
+        setTabs(tabs.map(tab =>
+          tab.id === activeTab ? { 
+            ...tab, 
+            result: 'An unknown error occurred while processing your prompt.',
+            isLoading: false 
+          } : tab
+        ));
+      }
+    }
+  };
+
+  // Execute the prompt with parameter values
+  const executePromptWithParams = async (paramValues: Record<string, string>) => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt) return;
+    
+    // Replace parameters with their values in the main prompt
+    const processedContent = replaceParameters(activePrompt.content, paramValues);
+    
+    // Also replace parameters in the system prompt if it exists
+    let processedSystemPrompt = activePrompt.systemPrompt;
+    if (processedSystemPrompt) {
+      processedSystemPrompt = replaceParameters(processedSystemPrompt, paramValues);
+    }
+    
+    // Update the tab with the processed system prompt (but don't change the original template)
+    const updatedTabs = tabs.map(tab => 
+      tab.id === activeTab 
+        ? { ...tab, processedSystemPrompt } 
+        : tab
+    );
+    setTabs(updatedTabs);
+    
+    // Hide the modal
+    setShowParamModal(false);
+    
+    // Execute the prompt with the processed content
+    await executePrompt(processedContent);
+  };
+
+  // Extract the existing prompt execution logic to a separate function
+  const executePrompt = async (promptContent: string) => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt) return;
 
     setTabs(tabs.map(tab =>
-      tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab // Clear previous result
+      tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab
     ));
 
     let searchResultsContext = '';
     const isWebSearchEnabled = localStorage.getItem('web_search_enabled') === 'true';
 
-    if (isWebSearchEnabled && activePrompt.content.trim() !== '') {
+    if (isWebSearchEnabled && promptContent.trim() !== '') {
       try {
         const selectedModel = localStorage.getItem('selected_model') || 'default_model_name'; 
         const modelMaxContextTokens = getModelContextLimit({ context_length: 16000 });
         
-        const userPromptTokens = estimateTokens(activePrompt.content);
+        // Use the processed content with parameters replaced for token estimation
+        const userPromptTokens = estimateTokens(promptContent);
         const existingSystemPromptTokens = estimateTokens(activePrompt.systemPrompt || '');
         const basePromptTokens = userPromptTokens + existingSystemPromptTokens;
 
@@ -124,7 +230,7 @@ export function Tabs() {
         const SEARCH_CONTEXT_TOKEN_BUDGET = modelMaxContextTokens - basePromptTokens - RESPONSE_AND_OVERHEAD_BUFFER;
 
         if (SEARCH_CONTEXT_TOKEN_BUDGET > 100) { // Only search if there's a reasonable budget
-          let searchQueryForDDG = activePrompt.content; // Default/fallback search query
+          let searchQueryForDDG = promptContent; // Use processed content with parameters replaced
 
           try {
             const apiKey = localStorage.getItem('openrouter_api_key');
@@ -139,7 +245,7 @@ export function Tabs() {
 
 User Prompt:
 """
-${activePrompt.content}
+${promptContent}
 """
 
 Search Terms:`;
@@ -261,7 +367,8 @@ Content: ${snippet.text}
       const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2';
       const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}');
 
-      let finalSystemPrompt = activePrompt.systemPrompt || '';
+      // Use processedSystemPrompt if available (for parameter substitution), otherwise use the original systemPrompt
+      let finalSystemPrompt = activePrompt.processedSystemPrompt || activePrompt.systemPrompt || '';
       if (searchResultsContext) {
         if (finalSystemPrompt.trim() !== '') {
           // Prepend search results, then a separator, then the original system prompt
@@ -276,8 +383,8 @@ Content: ${snippet.text}
       if (finalSystemPrompt.trim() !== '') {
         messages.push({ role: 'system', content: finalSystemPrompt });
       }
-      // Ensure user prompt is always added
-      messages.push({ role: 'user', content: activePrompt.content || " " }); // Added fallback for empty user content to ensure messages array is not empty if system prompt is also empty after search. 
+      // Ensure user prompt is always added - use the processed content with parameters replaced
+      messages.push({ role: 'user', content: promptContent || " " }); // Use the processed content instead of activePrompt.content
 
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -662,6 +769,17 @@ Content: ${snippet.text}
           </div>
         )}
       </div>
+      
+      {/* Parameter Modal */}
+      {showParamModal && (
+        <ParameterModal
+          parameters={activeParameters}
+          tabId={activeTab}
+          tabName={tabs.find(tab => tab.id === activeTab)?.name || 'Prompt'}
+          onSubmit={executePromptWithParams}
+          onCancel={() => setShowParamModal(false)}
+        />
+      )}
     </div>
   )
 }

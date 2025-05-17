@@ -2,8 +2,9 @@
   <img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg" alt="License: AGPL v3">
   <img src="https://img.shields.io/badge/Built%20With-Next.js-blue?logo=nextdotjs" alt="Built with Next.js">
   <img src="https://img.shields.io/badge/Docker-ready-blue?logo=docker" alt="Docker ready">
-  <img src="https://img.shields.io/badge/Cloud%20Run-ready-brightgreen?logo=googlecloud" alt="Cloud Run ready">
+  <img src="https://img.shields.io/badge/Cloud%20Run-ready-brightgreen?logo=googlecloud" alt="Cloud Run ready"><br />
   <img src="https://img.shields.io/badge/Focus-Hobbyists-orange" alt="Focus: Hobbyists">
+  <img src="https://img.shields.io/badge/Focus-Software%20Engineers-orange" alt="Focus: Software Engineers">
   <img src="https://img.shields.io/badge/Focus-Prompt%20Engineers-orange" alt="Focus: Prompt Engineers">
   <img src="https://img.shields.io/badge/Focus-Data%20Scientists-orange" alt="Focus: Data Scientists">
 </p>

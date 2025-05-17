@@ -19,6 +19,7 @@
 - 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
 - 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration.
 - 📂 **Prompt Management**: Import/export prompts (with metadata), persistent model settings, and YAML frontmatter support.
+- 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax, which can be filled in at runtime via an intuitive modal interface.
 - 🧠 **Web Search Augmentation**: 
   - Toggleable real-time web search via DuckDuckGo, with search terms auto-extracted by an LLM meta-prompt.
   - Injects up-to-date search snippets into LLM context for more relevant answers.
@@ -63,6 +64,26 @@ Why is the sky blue?
 ## System Prompt
 You are a scientific expert specializing in atmospheric physics. Explain concepts clearly and precisely, using technical language where appropriate.
 ```
+
+### Prompt Parameters
+
+You can use parameters in your prompts with the `{{ParameterName}}` syntax:
+
+```markdown
+---
+{
+  "model": "anthropic/claude-2",
+  "temperature": 0.7
+}
+---
+
+Tell me about the history of {{City}} in {{Country}}.
+```
+
+When you run a prompt with parameters:
+1. A modal will appear for you to input values for each parameter
+2. Previously used values are remembered for convenience
+3. The original prompt template remains unchanged for future use
 
 ---
 

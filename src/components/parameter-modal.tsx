@@ -272,7 +272,7 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
             <textarea
               value={value}
               onChange={(e) => handleChange(param.name, e.target.value)}
-              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
               rows={4}
               autoComplete="new-password"
               autoCorrect="off"

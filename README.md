@@ -33,6 +33,26 @@
 
 ---
 
+## 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
+
+A user interface that is clear, simple, and optimized for developers. 
+
+<img width="1291" alt="image" src="https://github.com/user-attachments/assets/fb96828c-fbb1-4628-ad63-998425290b35" />
+
+## Prompt parameterisation 
+
+The underlying prompt needs no modification to use:-
+
+<img width="797" alt="image" src="https://github.com/user-attachments/assets/1bb730f5-1189-4eac-86b1-b479a992f686" />
+
+With parameter values saved to local storage so that they can be re-used (or cleared) as required.
+
+## Integrated Web Search (powered by DuckDuckGo)
+
+A web search feature that works **without** function calling, allowing **any** model to use relevant results to enrich your prompt.
+
+---
+
 ## 🏗️ Architecture Overview
 
 | Layer         | Technology/Notes                                         |
@@ -86,34 +106,6 @@ $ npm run dev
 # 4. Open in your browser
 $ open http://localhost:3000
 ```
-
----
-
-- 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
-- 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration.
-- 📂 **Prompt Management**: Import/export prompts (with metadata), persistent model settings, and YAML frontmatter support.
-- 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax, which can be filled in at runtime via an intuitive modal interface.
-- 🧠 **Web Search Augmentation**: 
-  - Toggleable real-time web search via DuckDuckGo, with search terms auto-extracted by an LLM meta-prompt.
-  - Injects up-to-date search snippets into LLM context for more relevant answers.
-- 🐳 **Dockerized**: Easy to build, run, and deploy anywhere.
-- ☁️ **Cloud Ready**: Single-container deployment to Google Cloud Run.
-- 📝 **Markdown & JSON Rendering**: Tabbed result view with raw and rendered outputs.
-
----
-
-## 🏗️ Architecture Overview
-
-| Layer         | Technology/Notes                                         |
-|---------------|---------------------------------------------------------|
-| **Frontend**  | Next.js, React, TailwindCSS, Radix UI, Monaco Editor    |
-| **Backend**   | Next.js API routes (TypeScript)                         |
-| **LLM Access**| OpenRouter API                                          |
-| **Web Search**| DuckDuckGo search (`@pikisoft/duckduckgo-search`)       |
-| **Prompts**   | Markdown files with YAML frontmatter (`/prompts`)       |
-| **Container** | Docker (multi-stage build)                              |
-
----
 
 ## 📦 Prompt File Format
 

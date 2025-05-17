@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { ParameterInfo } from '@/lib/parameterUtils'
+import { ParameterInfo, validateParameterValue } from '@/lib/parameterUtils'
 
 /**
  * Format parameter name for better readability
@@ -28,6 +28,7 @@ const formatParameterName = (paramName: string): string => {
 interface ParameterModalProps {
   parameters: ParameterInfo[]
   tabId: string
+  tabName: string
   onSubmit: (values: Record<string, string>) => void
   onCancel: () => void
 }
@@ -104,7 +105,7 @@ const generateYearOptions = (pastYears: number = 5, futureYears: number = 5): { 
   return years;
 };
 
-export function ParameterModal({ parameters, tabId, onSubmit, onCancel }: ParameterModalProps) {
+export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel }: ParameterModalProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -135,46 +136,110 @@ export function ParameterModal({ parameters, tabId, onSubmit, onCancel }: Parame
 
   const handleChange = (paramName: string, value: string) => {
     setValues(prev => ({ ...prev, [paramName]: value }));
+    
+    // Find the parameter definition
+    const param = parameters.find(p => p.name === paramName);
+    if (!param) return;
+    
+    // Validate the value
+    const validation = validateParameterValue(param, value);
+    if (!validation.valid) {
+      setErrors(prev => ({ ...prev, [paramName]: validation.error || 'Invalid value' }));
+    } else {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[paramName];
+        return newErrors;
+      });
+    }
   };
 
   const handleSubmit = () => {
-    // Validate all parameters have values
+    // Check if all required parameters have values
     const newErrors: Record<string, string> = {};
     let hasErrors = false;
     
     parameters.forEach(param => {
-      if (!values[param.name] || values[param.name].trim() === '') {
+      const value = values[param.name] || '';
+      
+      // Check if value is empty
+      if (value.trim() === '') {
         newErrors[param.name] = 'This field is required';
         hasErrors = true;
+      } else {
+        // Validate the value
+        const validation = validateParameterValue(param, value);
+        if (!validation.valid) {
+          newErrors[param.name] = validation.error || 'Invalid value';
+          hasErrors = true;
+        }
       }
     });
     
-    setErrors(newErrors);
+    if (hasErrors) {
+      setErrors(newErrors);
+      return;
+    }
     
-    // Only proceed if there are no errors
-    if (!hasErrors) {
-      // Save values to localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`param_values_${tabId}`, JSON.stringify(values));
-      }
-      onSubmit(values);
+    // Save values to localStorage for future use
+    localStorage.setItem(`param_values_${tabId}`, JSON.stringify(values));
+    
+    // Submit the values
+    onSubmit(values);
+  };
+
+  // Get validation hint text for a parameter
+  const getValidationHint = (param: ParameterInfo): string => {
+    if (!param.validationType || !param.validationRules) return '';
+    
+    switch (param.validationType) {
+      case 'string':
+        const minChars = param.validationRules.min !== undefined ? `min ${param.validationRules.min} chars` : '';
+        const maxChars = param.validationRules.max !== undefined ? `max ${param.validationRules.max} chars` : '';
+        return [minChars, maxChars].filter(Boolean).join(', ');
+        
+      case 'number':
+        const minVal = param.validationRules.min !== undefined ? `min ${param.validationRules.min}` : '';
+        const maxVal = param.validationRules.max !== undefined ? `max ${param.validationRules.max}` : '';
+        return [minVal, maxVal].filter(Boolean).join(', ');
+        
+      case 'regexp':
+        return 'must match pattern';
+        
+      default:
+        return '';
     }
   };
-  
+
   // Render the appropriate input field based on parameter type
   const renderParameterField = (param: ParameterInfo) => {
     const value = values[param.name] || '';
     
+    // Add validation indicator if the parameter has validation rules
+    const hasValidation = param.validationType && param.validationRules;
+    const validationHint = hasValidation ? getValidationHint(param) : '';
+    
     switch (param.type) {
       case 'multiline':
         return (
-          <textarea
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            rows={4}
-            placeholder={`Enter value for ${param.name}`}
-          />
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <textarea
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              rows={4}
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              data-form-type="other"
+            />
+          </div>
         );
         
       case 'checkbox':
@@ -195,197 +260,275 @@ export function ParameterModal({ parameters, tabId, onSubmit, onCancel }: Parame
         );
         
       case 'select':
+        if (!param.options || param.options.length === 0) {
+          return (
+            <div className="text-red-500 text-xs">
+              Error: No options provided for select field
+            </div>
+          );
+        }
         return (
-          <select
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-          >
-            <option value="">Select...</option>
-            {param.options?.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        );
-        
-      case 'month':
-        // Generate month options based on format
-        const monthOptions = generateMonthOptions(param.format);
-        
-        // Set default value to current month if not already set
-        useEffect(() => {
-          if (!values[param.name]) {
-            const currentDate = new Date();
-            let currentMonth;
-            
-            switch (param.format) {
-              case 'short':
-                currentMonth = monthOptions[currentDate.getMonth()].value;
-                break;
-              case 'numeric':
-                currentMonth = String(currentDate.getMonth() + 1);
-                break;
-              case 'numeric-dd':
-                const monthNum = currentDate.getMonth() + 1;
-                currentMonth = monthNum < 10 ? `0${monthNum}` : String(monthNum);
-                break;
-              default: // Full month names
-                currentMonth = monthOptions[currentDate.getMonth()].value;
-            }
-            
-            handleChange(param.name, currentMonth);
-          }
-        }, [param.name, param.format]);
-        
-        return (
-          <select
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-          >
-            <option value="">Select month...</option>
-            {monthOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        );
-        
-      case 'year':
-        // Generate year options based on specified range
-        const yearOptions = generateYearOptions(
-          param.pastYears || 5,
-          param.futureYears || 5
-        );
-        
-        // Set default value to current year if not already set
-        useEffect(() => {
-          if (!values[param.name]) {
-            const currentYear = String(new Date().getFullYear());
-            handleChange(param.name, currentYear);
-          }
-        }, [param.name]);
-        
-        return (
-          <select
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-          >
-            <option value="">Select year...</option>
-            {yearOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        );
-        
-      case 'multiselect':
-        const selectedValues = value ? value.split(',').map(v => v.trim()) : [];
-        return (
-          <div className="space-y-2">
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
             <select
-              multiple
-              value={selectedValues}
-              onChange={(e) => {
-                const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
-                handleChange(param.name, selected.join(', '));
-              }}
-              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-              size={Math.min(4, param.options?.length || 4)}
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              autoComplete="new-password"
+              data-form-type="other"
             >
-              {param.options?.map(option => (
-                <option key={option} value={option}>{option}</option>
+              <option value="" disabled>Select an option</option>
+              {param.options.map((option, index) => (
+                <option key={index} value={option}>
+                  {option}
+                </option>
               ))}
             </select>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              Hold Ctrl/Cmd to select multiple options
-            </div>
           </div>
         );
         
-      case 'radio':
+      case 'month':
+        const monthOptions = generateMonthOptions(param.format);
         return (
-          <div className="space-y-2">
-            {param.options?.map(option => (
-              <div key={option} className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  id={`param-${param.name}-${option}`}
-                  name={param.name}
-                  value={option}
-                  checked={value === option}
-                  onChange={() => handleChange(param.name, option)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                />
-                <label htmlFor={`param-${param.name}-${option}`} className="text-sm">
-                  {option}
-                </label>
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
               </div>
-            ))}
+            )}
+            <select
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              autoComplete="new-password"
+              data-form-type="other"
+            >
+              <option value="" disabled>Select a month</option>
+              {monthOptions.map((option, index) => (
+                <option key={index} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+        
+      case 'year':
+        const yearOptions = generateYearOptions(
+          param.pastYears !== undefined ? param.pastYears : 5,
+          param.futureYears !== undefined ? param.futureYears : 5
+        );
+        return (
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <select
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              autoComplete="new-password"
+              data-form-type="other"
+            >
+              <option value="" disabled>Select a year</option>
+              {yearOptions.map((option, index) => (
+                <option key={index} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+        
+      case 'multiselect':
+        if (!param.options || param.options.length === 0) {
+          return (
+            <div className="text-red-500 text-xs">
+              Error: No options provided for multiselect field
+            </div>
+          );
+        }
+        
+        const selectedValues = value ? value.split(',').map(v => v.trim()) : [];
+        
+        // Handle checkbox change for multiselect
+        const handleCheckboxChange = (option: string) => {
+          let newSelectedValues = [...selectedValues];
+          
+          if (selectedValues.includes(option)) {
+            // Remove the option if already selected
+            newSelectedValues = newSelectedValues.filter(val => val !== option);
+          } else {
+            // Add the option if not already selected
+            newSelectedValues.push(option);
+          }
+          
+          handleChange(param.name, newSelectedValues.join(','));
+        };
+        
+        return (
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <div className="border rounded dark:bg-gray-700 dark:border-gray-600 p-2 max-h-40 overflow-y-auto">
+              {param.options.map((option, index) => (
+                <div key={option} className="flex items-center space-x-2 py-1">
+                  <input
+                    type="checkbox"
+                    id={`param-${param.name}-${option}`}
+                    checked={selectedValues.includes(option)}
+                    onChange={() => handleCheckboxChange(option)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor={`param-${param.name}-${option}`} className="text-sm cursor-pointer">
+                    {option}
+                  </label>
+                </div>
+              ))}
+            </div>
           </div>
         );
         
       case 'number':
         return (
-          <input
-            type="number"
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            placeholder={`Enter value for ${param.name}`}
-          />
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <input
+              type="number"
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              data-form-type="other"
+            />
+          </div>
         );
         
       case 'date':
         return (
-          <input
-            type="date"
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-          />
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <input
+              type="date"
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              data-form-type="other"
+            />
+          </div>
         );
         
       case 'time':
         return (
-          <input
-            type="time"
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-          />
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <input
+              type="time"
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              data-form-type="other"
+            />
+          </div>
         );
         
       case 'email':
         return (
-          <input
-            type="email"
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            placeholder="example@domain.com"
-          />
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <input
+              type="email"
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              placeholder="example@domain.com"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+            />
+          </div>
         );
         
       case 'url':
         return (
-          <input
-            type="url"
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            placeholder="https://example.com"
-          />
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <input
+              type="url"
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              placeholder="https://example.com"
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              data-form-type="other"
+            />
+          </div>
         );
         
       default: // text input (default)
         return (
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => handleChange(param.name, e.target.value)}
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            placeholder={`Enter value for ${param.name}`}
-          />
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => handleChange(param.name, e.target.value)}
+              className="w-full h-10 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              placeholder={`Enter value for ${param.name}`}
+              autoComplete="off" 
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+            />
+          </div>
         );
     }
   };
@@ -403,12 +546,21 @@ export function ParameterModal({ parameters, tabId, onSubmit, onCancel }: Parame
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 ${useMultiColumn ? 'w-full max-w-3xl' : 'w-full max-w-md'} max-h-[90vh] overflow-auto`}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Enter Parameter Values</h2>
-          <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-            <X size={18} />
-          </button>
-        </div>
+        <form 
+          autoComplete="off" 
+          onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
+          spellCheck="false"
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">{tabName} Parameters</h2>
+            <button 
+              type="button" 
+              onClick={onCancel} 
+              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              <X size={18} />
+            </button>
+          </div>
         
         {tooManyParameters && (
           <div className="mb-4 p-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs rounded">
@@ -416,34 +568,36 @@ export function ParameterModal({ parameters, tabId, onSubmit, onCancel }: Parame
           </div>
         )}
         
-        <div className={`${useMultiColumn ? 'grid grid-cols-2 gap-4' : 'space-y-3'} text-sm`}>
-          {parameters.map(param => (
-            <div key={param.name} className="space-y-1">
-              <label className="block text-xs font-medium">
-                {formatParameterName(param.name)}
-              </label>
-              {renderParameterField(param)}
-              {errors[param.name] && (
-                <div className="text-red-500 text-xs mt-1">{errors[param.name]}</div>
-              )}
-            </div>
-          ))}
-        </div>
+          <div className={`${useMultiColumn ? 'grid grid-cols-2 gap-4' : 'space-y-3'} text-sm`}>
+            {parameters.map(param => (
+              <div key={param.name} className="space-y-1">
+                <label className="block text-xs font-medium">
+                  {formatParameterName(param.name)}
+                </label>
+                {renderParameterField(param)}
+                {errors[param.name] && (
+                  <div className="text-red-500 text-xs mt-1">{errors[param.name]}</div>
+                )}
+              </div>
+            ))}
+          </div>
         
-        <div className="mt-5 flex justify-end space-x-3">
-          <button
-            onClick={onCancel}
-            className="px-3 py-1.5 border rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-3 py-1.5 bg-blue-600 text-sm text-white rounded hover:bg-blue-700"
-          >
-            Run &gt;
-          </button>
-        </div>
+          <div className="mt-5 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-3 py-1.5 border rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-3 py-1.5 bg-blue-600 text-sm text-white rounded hover:bg-blue-700"
+            >
+              Run &gt;
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

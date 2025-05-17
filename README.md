@@ -102,9 +102,10 @@ You can specify different field types for parameters using the syntax `{{Paramet
 ##### Selection Field Types
 
 ```markdown
-{{AgreeToTerms|checkbox:Yes,No}}                           # Checkbox with custom labels
-{{Country|select:USA,Canada,Mexico,UK,Australia}}          # Dropdown select
-{{Skills|multiselect:JavaScript,Python,Java,C++,Go}}       # Multi-select dropdown
+{{Answer|checkbox:Yes}}           # Single checkbox (returns "Yes" when checked, empty when unchecked)
+{{Options|radio:Option1,Option2}} # Radio buttons (single selection)
+{{City|select:Paris,London}}      # Dropdown select (single selection)
+{{Activities|multiselect:Museums,Restaurants,Parks}} # Checkbox group for multiple selections
 {{Gender|radio:Male,Female,Non-binary,Prefer not to say}}  # Radio button group
 ```
 
@@ -145,7 +146,7 @@ You can specify different field types for parameters using the syntax `{{Paramet
 
 Create a travel itinerary for {{Name}} visiting {{City|select:Paris,London,Tokyo,New York}} in {{Month|month}} {{Year|year}}.
 
-Include the following activities: {{Activities|multiselect:Museums,Restaurants,Parks,Shopping,Nightlife}}
+Include the following activities: {{Activities|multiselect:Museums,Restaurants,Parks,Shopping,Nightlife}} <!-- Renders as a checkbox group for better usability -->
 
 ## System Prompt
 You are a travel expert specializing in creating personalized itineraries. The traveler's name is {{Name}} and they are {{Age|number}} years old.
@@ -153,12 +154,30 @@ You are a travel expert specializing in creating personalized itineraries. The t
 
 This optional parameter functionality allows you to create reusable prompt templates that can be customized at runtime without modifying the original template.
 
+##### Parameter Validation
+
+You can add validation rules to parameters using the syntax `{{ParameterName|fieldType|validationType:rules}}`. All validation is optional but provides better user experience.
+
+```markdown
+{{Name|text|string:min-3,max-100}}    # Text with length between 3 and 100 characters
+{{Age|number|number:min-18,max-65}}   # Number between 18 and 65
+{{Username|text|regexp:^[a-zA-Z0-9]+$}}  # Text matching a regular expression pattern
+```
+
+Validation types:
+- `string`: Validates text length with `min-X` and `max-X` rules
+- `number`: Validates numeric values with `min-X` and `max-X` rules
+- `regexp`: Validates against a regular expression pattern
+
+If validation fails, the user will see an error message and cannot submit the form until all validations pass.
+
 ##### Parameter Guidelines and Limitations
 
 ```markdown
 # Recommended limit: 12 parameters per prompt
 # The UI will automatically switch to a multi-column layout for prompts with more than 5 parameters
 # All parameters are required fields and must have values before the prompt can be executed
+# Multiselect fields render as checkbox groups for better usability, especially on touch devices
 ```
 
 ##### Restrictions

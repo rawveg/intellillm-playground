@@ -775,6 +775,7 @@ Content: ${snippet.text}
         <ParameterModal
           parameters={activeParameters}
           tabId={activeTab}
+          tabName={tabs.find(tab => tab.id === activeTab)?.name || 'Prompt'}
           onSubmit={executePromptWithParams}
           onCancel={() => setShowParamModal(false)}
         />

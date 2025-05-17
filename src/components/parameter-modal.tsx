@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
-import { ParameterInfo, validateParameterValue } from '@/lib/parameterUtils'
+import { X, RotateCcw } from 'lucide-react'
+import { ParameterInfo, validateParameterValue, processDefaultValue } from '@/lib/parameterUtils'
 
 /**
  * Format parameter name for better readability
@@ -108,29 +108,51 @@ const generateYearOptions = (pastYears: number = 5, futureYears: number = 5): { 
 export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel }: ParameterModalProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [hasStoredValues, setHasStoredValues] = useState(false);
 
-  // Load previously used values from localStorage
+  // Load previously used values from localStorage and apply defaults
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Initialize with default values first
+      const initialValues: Record<string, string> = {};
+      let usingStoredValues = false;
+      
+      // Apply default values
+      parameters.forEach(param => {
+        if (param.defaultValue) {
+          // For multiselect fields, the default value can be comma-separated
+          // and we need to ensure it's properly formatted
+          if (param.type === 'multiselect') {
+            // Ensure the default values are properly formatted for multiselect
+            // The default value string might contain spaces after commas
+            initialValues[param.name] = param.defaultValue.split(',').map(v => v.trim()).join(',');
+          } else {
+            // For all other fields, use the default value as is
+            initialValues[param.name] = param.defaultValue;
+          }
+        }
+      });
+      
+      // Then override with stored values if they exist
       const storedValues = localStorage.getItem(`param_values_${tabId}`);
       if (storedValues) {
         try {
           const parsedValues = JSON.parse(storedValues) as Record<string, string>;
-          // Only use stored values for parameters that exist in the current prompt
-          const filteredValues: Record<string, string> = {};
           
-          // Filter only the parameters that exist in the current prompt
+          // Only use stored values for parameters that exist in the current prompt
           for (const [key, value] of Object.entries(parsedValues)) {
             if (parameters.some(p => p.name === key)) {
-              filteredValues[key] = value;
+              initialValues[key] = value;
+              usingStoredValues = true;
             }
           }
-          
-          setValues(filteredValues);
         } catch (e) {
           console.error('Failed to parse stored parameter values:', e);
         }
       }
+      
+      setValues(initialValues);
+      setHasStoredValues(usingStoredValues);
     }
   }, [parameters, tabId]);
 
@@ -183,9 +205,28 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
     
     // Save values to localStorage for future use
     localStorage.setItem(`param_values_${tabId}`, JSON.stringify(values));
+    setHasStoredValues(true);
     
     // Submit the values
     onSubmit(values);
+  };
+  
+  // Restore default values by clearing localStorage and resetting to defaults
+  const handleRestoreDefaults = () => {
+    // Remove stored values from localStorage
+    localStorage.removeItem(`param_values_${tabId}`);
+    
+    // Reset to default values
+    const defaultValues: Record<string, string> = {};
+    parameters.forEach(param => {
+      if (param.defaultValue) {
+        defaultValues[param.name] = param.defaultValue;
+      }
+    });
+    
+    setValues(defaultValues);
+    setErrors({});
+    setHasStoredValues(false);
   };
 
   // Get validation hint text for a parameter
@@ -582,20 +623,36 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
             ))}
           </div>
         
-          <div className="mt-5 flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-3 py-1.5 border rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-3 py-1.5 bg-blue-600 text-sm text-white rounded hover:bg-blue-700"
-            >
-              Run &gt;
-            </button>
+          <div className="mt-5 flex justify-between">
+            {/* Restore Defaults button - only visible when stored values exist */}
+            <div>
+              {hasStoredValues && (
+                <button
+                  type="button"
+                  onClick={handleRestoreDefaults}
+                  className="px-3 py-1.5 border rounded text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                  title="Restore to default values"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                  Restore Defaults
+                </button>
+              )}
+            </div>
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-3 py-1.5 border rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-3 py-1.5 bg-blue-600 text-sm text-white rounded hover:bg-blue-700"
+              >
+                Run &gt;
+              </button>
+            </div>
           </div>
         </form>
       </div>

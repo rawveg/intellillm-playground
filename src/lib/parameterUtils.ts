@@ -19,6 +19,8 @@ export interface ParameterInfo {
     pattern?: string;
     // Other validation rules as needed
   };
+  // Default value
+  defaultValue?: string;
 }
 
 /**
@@ -139,6 +141,67 @@ function parseValidationRules(validationType: string, rulesString: string, field
 }
 
 /**
+ * Extract default value from a parameter string
+ * @param paramParts Array of parameter parts (type, options, validation, etc.)
+ * @returns Default value if found, undefined otherwise
+ */
+function extractDefaultValue(paramParts: string[]): string | undefined {
+  for (const part of paramParts) {
+    if (part.trim().startsWith('default:')) {
+      const defaultValue = part.trim().substring('default:'.length).trim();
+      return defaultValue.length > 0 ? defaultValue : '';
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Process default value based on parameter type
+ * @param defaultValue The raw default value string
+ * @param paramType The parameter type
+ * @param options Optional parameter options (for validation against select/multiselect options)
+ * @returns Processed default value
+ */
+export function processDefaultValue(defaultValue: string, paramType: string, options?: string[]): string {
+  if (defaultValue === 'current') {
+    try {
+      const now = new Date();
+      
+      switch (paramType) {
+        case 'date':
+          return now.toISOString().split('T')[0]; // YYYY-MM-DD
+        case 'time':
+          return now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+        case 'year':
+          return now.getFullYear().toString();
+        case 'month':
+          return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(now);
+        default:
+          return defaultValue;
+      }
+    } catch (e) {
+      console.error('Error processing special default value:', e);
+      return defaultValue; // Fall back to the original value
+    }
+  }
+  
+  // For multiselect, ensure the values are valid and properly formatted
+  if (paramType === 'multiselect' && options && options.length > 0) {
+    // Split the default values, trim them, and filter to only include valid options
+    const defaultValues = defaultValue.split(',').map(v => v.trim());
+    
+    // Validate that each default value is in the options list
+    const validDefaultValues = defaultValues.filter(value => 
+      options.some(option => option.trim().toLowerCase() === value.toLowerCase())
+    );
+    
+    return validDefaultValues.join(',');
+  }
+  
+  return defaultValue;
+}
+
+/**
  * Extract all unique parameters from a prompt string with their types and options
  * @param promptText The prompt text to extract parameters from
  * @returns Array of parameter info objects
@@ -151,18 +214,26 @@ export function extractParameters(promptText: string): ParameterInfo[] {
   validateNoNestedParameters(promptText);
   
   // Enhanced regex to match {{name}}, {{name|type}}, {{name|type:options}}, and {{name|type|validation:rules}}
+  // We'll keep the original regex pattern to maintain backward compatibility
   const paramRegex = /{{([^|{}]+)(?:\|([^:|{}]+)(?::([^|{}]+))?)?(?:\|([^:|{}]+)(?::([^{}]+))?)?}}/g;
   const parameters: ParameterInfo[] = [];
   const paramNames = new Set<string>();
   
   let match;
   while ((match = paramRegex.exec(promptText)) !== null) {
-    const [_, name, typeOrValidation, optionsOrRules, validationType, validationRules] = match;
+    const [fullMatch, name, typeOrValidation, optionsOrRules, validationType, validationRules] = match;
     const trimmedName = name.trim();
     
     // Skip duplicates
     if (paramNames.has(trimmedName)) continue;
     paramNames.add(trimmedName);
+    
+    // Look for default value in the full match
+    const defaultValueMatch = fullMatch.match(/\|default:([^|}]+)/i);
+    let defaultValue: string | undefined;
+    if (defaultValueMatch && defaultValueMatch[1]) {
+      defaultValue = defaultValueMatch[1].trim();
+    }
     
     // Determine if the second part is a type or validation
     let type = 'text';
@@ -226,6 +297,11 @@ export function extractParameters(promptText: string): ParameterInfo[] {
       type
     };
     
+    // Add default value if found
+    if (defaultValue !== undefined) {
+      paramInfo.defaultValue = defaultValue;
+    }
+    
     // Add type-specific options
     if (options) paramInfo.options = options;
     if (format) paramInfo.format = format;
@@ -259,6 +335,20 @@ export function extractParameters(promptText: string): ParameterInfo[] {
           vRules, 
           paramInfo.type
         );
+      }
+    }
+    
+    // Process default value if it's a special value
+    if (paramInfo.defaultValue) {
+      paramInfo.defaultValue = processDefaultValue(paramInfo.defaultValue, paramInfo.type, paramInfo.options);
+      
+      // Validate default value if validation rules exist
+      if (paramInfo.validationType && paramInfo.validationRules) {
+        const validation = validateParameterValue(paramInfo, paramInfo.defaultValue);
+        if (!validation.valid) {
+          console.warn(`Default value "${paramInfo.defaultValue}" for parameter "${paramInfo.name}" fails validation: ${validation.error}`);
+          // Keep the default but log a warning - don't throw an error to maintain backward compatibility
+        }
       }
     }
     

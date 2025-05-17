@@ -8,6 +8,8 @@ import { PromptLibrary } from './prompt-library'
 import * as RadixTabs from '@radix-ui/react-tabs';
 import ReactMarkdown from 'react-markdown';
 import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils';
+import { extractParameters, replaceParameters } from '@/lib/parameterUtils';
+import { ParameterModal } from './parameter-modal';
 
 interface Tab {
   id: string
@@ -38,6 +40,11 @@ export function Tabs() {
     { id: '1', name: 'New Prompt', content: '' }
   ])
   const [activeTab, setActiveTab] = useState('1')
+  
+  // Parameter modal state
+  const [showParamModal, setShowParamModal] = useState(false);
+  const [activeParameters, setActiveParameters] = useState<string[]>([]);
+  const [parameterizedContent, setParameterizedContent] = useState<string>('');
 
   // Update model and settings when active tab changes
   const updateModelSettings = (tabId: string) => {
@@ -103,20 +110,55 @@ export function Tabs() {
   const runPrompt = async () => {
     const activePrompt = tabs.find(tab => tab.id === activeTab);
     if (!activePrompt) return;
+    
+    // Check for parameters in the prompt
+    const parameters = extractParameters(activePrompt.content);
+    
+    if (parameters.length > 0) {
+      // If parameters exist, show the modal
+      setActiveParameters(parameters);
+      setShowParamModal(true);
+      return;
+    }
+    
+    // If no parameters, proceed with the normal flow
+    await executePrompt(activePrompt.content);
+  };
+  
+  // Execute the prompt with parameter values
+  const executePromptWithParams = async (paramValues: Record<string, string>) => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt) return;
+    
+    // Replace parameters with their values
+    const processedContent = replaceParameters(activePrompt.content, paramValues);
+    
+    // Hide the modal
+    setShowParamModal(false);
+    
+    // Execute the prompt with the processed content
+    await executePrompt(processedContent);
+  };
+  
+  // Extract the existing prompt execution logic to a separate function
+  const executePrompt = async (promptContent: string) => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt) return;
 
     setTabs(tabs.map(tab =>
-      tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab // Clear previous result
+      tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab
     ));
 
     let searchResultsContext = '';
     const isWebSearchEnabled = localStorage.getItem('web_search_enabled') === 'true';
 
-    if (isWebSearchEnabled && activePrompt.content.trim() !== '') {
+    if (isWebSearchEnabled && promptContent.trim() !== '') {
       try {
         const selectedModel = localStorage.getItem('selected_model') || 'default_model_name'; 
         const modelMaxContextTokens = getModelContextLimit({ context_length: 16000 });
         
-        const userPromptTokens = estimateTokens(activePrompt.content);
+        // Use the processed content with parameters replaced for token estimation
+        const userPromptTokens = estimateTokens(promptContent);
         const existingSystemPromptTokens = estimateTokens(activePrompt.systemPrompt || '');
         const basePromptTokens = userPromptTokens + existingSystemPromptTokens;
 
@@ -124,7 +166,7 @@ export function Tabs() {
         const SEARCH_CONTEXT_TOKEN_BUDGET = modelMaxContextTokens - basePromptTokens - RESPONSE_AND_OVERHEAD_BUFFER;
 
         if (SEARCH_CONTEXT_TOKEN_BUDGET > 100) { // Only search if there's a reasonable budget
-          let searchQueryForDDG = activePrompt.content; // Default/fallback search query
+          let searchQueryForDDG = promptContent; // Use processed content with parameters replaced
 
           try {
             const apiKey = localStorage.getItem('openrouter_api_key');
@@ -139,7 +181,7 @@ export function Tabs() {
 
 User Prompt:
 """
-${activePrompt.content}
+${promptContent}
 """
 
 Search Terms:`;
@@ -276,8 +318,8 @@ Content: ${snippet.text}
       if (finalSystemPrompt.trim() !== '') {
         messages.push({ role: 'system', content: finalSystemPrompt });
       }
-      // Ensure user prompt is always added
-      messages.push({ role: 'user', content: activePrompt.content || " " }); // Added fallback for empty user content to ensure messages array is not empty if system prompt is also empty after search. 
+      // Ensure user prompt is always added - use the processed content with parameters replaced
+      messages.push({ role: 'user', content: promptContent || " " }); // Use the processed content instead of activePrompt.content
 
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -662,6 +704,16 @@ Content: ${snippet.text}
           </div>
         )}
       </div>
+      
+      {/* Parameter Modal */}
+      {showParamModal && (
+        <ParameterModal
+          parameters={activeParameters}
+          tabId={activeTab}
+          onSubmit={executePromptWithParams}
+          onCancel={() => setShowParamModal(false)}
+        />
+      )}
     </div>
   )
 }

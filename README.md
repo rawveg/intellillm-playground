@@ -47,6 +47,26 @@ The underlying prompt needs no modification to use:-
 
 With parameter values saved to local storage so that they can be re-used (or cleared) as required.
 
+### Supported Parameter Field Types
+
+The following parameter field types are fully implemented and available for use in prompt templates:
+
+- **text**: Single-line text input (default)
+- **multiline**: Multi-line textarea input
+- **number**: Numeric input (supports min/max validation)
+- **email**: Email address input (with validation)
+- **url**: URL input (with validation)
+- **date**: Date picker
+- **time**: Time picker
+- **month**: Month picker (supports formats: full, short, numeric, numeric-dd)
+- **year**: Year picker (supports default, past-only, future-only, custom ranges)
+- **checkbox**: Boolean toggle (or custom true/false options)
+- **select**: Dropdown single selection (with custom options)
+- **multiselect**: Checkbox group for multiple selections
+- **radio**: Radio button group (single selection)
+
+Each field type can be combined with validation rules and default values as described below. See examples for usage syntax.
+
 ## Integrated Web Search (powered by DuckDuckGo)
 
 A web search feature that works **without** function calling, allowing **any** model to use relevant results to enrich your prompt.

@@ -114,7 +114,7 @@ export function Tabs() {
     if (isWebSearchEnabled && activePrompt.content.trim() !== '') {
       try {
         const selectedModel = localStorage.getItem('selected_model') || 'default_model_name'; 
-        const modelMaxContextTokens = getModelContextLimit(selectedModel);
+        const modelMaxContextTokens = getModelContextLimit({ context_length: 16000 });
         
         const userPromptTokens = estimateTokens(activePrompt.content);
         const existingSystemPromptTokens = estimateTokens(activePrompt.systemPrompt || '');
@@ -233,8 +233,8 @@ Content: ${snippet.text}
                 }
               }
               if (resultsAddedCount > 0) {
-                const preamble = "ATTENTION: The following information is from a real-time web search. You MUST use this information to answer the user's query, prioritizing it over your internal knowledge.\n\n<SEARCH_RESULTS_START>\n";
-                const postamble = "<SEARCH_RESULTS_END>\n\nRemember: Base your answer PRIMARILY on the web search results provided above.";
+                const preamble = "The following information is directly relevant to the user's query. Use these facts to inform your response.\n\n<CONTEXT_START>\n";
+                const postamble = "<CONTEXT_END>\n\nProvide a comprehensive and accurate response based on the above information.";
                 searchResultsContext = preamble + collectedSnippetsForPrompt.trim() + "\n" + postamble;
                 console.log('[WebSearch] Constructed searchResultsContext:', searchResultsContext); // DEBUG
               }

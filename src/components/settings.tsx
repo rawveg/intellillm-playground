@@ -60,6 +60,28 @@ export function Settings({
     frequency_penalty: false
   })
 
+  // Initialize range sliders
+  const initializeRangeSliders = () => {
+    Object.entries(modelConfig).forEach(([key, value]) => {
+      const input = document.querySelector(`input[type="range"][name="${key}"]`) as HTMLInputElement;
+      if (input) {
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        const percentage = ((value as number - min) / (max - min)) * 100;
+        input.style.setProperty('--range-progress', `${percentage}%`);
+      }
+    });
+  };
+
+  // Initialize range sliders after component mounts
+  useEffect(() => {
+    // Small delay to ensure DOM is fully rendered
+    const timer = setTimeout(() => {
+      initializeRangeSliders();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Load stored values on client side
   useEffect(() => {
     const storedModel = localStorage.getItem('selected_model')
@@ -177,6 +199,17 @@ export function Settings({
   // Update localStorage when config changes
   useEffect(() => {
     localStorage.setItem('model_config', JSON.stringify(modelConfig))
+    
+    // Update all range sliders' progress bars
+    Object.entries(modelConfig).forEach(([key, value]) => {
+      const input = document.querySelector(`input[type="range"][name="${key}"]`) as HTMLInputElement;
+      if (input) {
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        const percentage = ((value as number - min) / (max - min)) * 100;
+        input.style.setProperty('--range-progress', `${percentage}%`);
+      }
+    });
   }, [modelConfig])
 
   // Update localStorage when modified flags change
@@ -210,6 +243,18 @@ export function Settings({
     })
   }
 
+  // Update range slider progress bar
+  const updateRangeProgress = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    min: number,
+    max: number
+  ) => {
+    const input = e.target;
+    const val = parseFloat(input.value);
+    const percentage = ((val - min) / (max - min)) * 100;
+    input.style.setProperty('--range-progress', `${percentage}%`);
+  }
+
   const handleNumberInput = (
     key: keyof ModelConfig,
     value: string,
@@ -223,6 +268,13 @@ export function Settings({
       // Round to the nearest step
       const roundedValue = Math.round(clampedValue / step) * step
       updateModelConfig({ [key]: roundedValue })
+      
+      // Update range slider if it exists
+      const rangeInput = document.querySelector(`input[type="range"][name="${key}"]`) as HTMLInputElement;
+      if (rangeInput) {
+        const percentage = ((roundedValue - min) / (max - min)) * 100;
+        rangeInput.style.setProperty('--range-progress', `${percentage}%`);
+      }
     }
   }
 
@@ -335,14 +387,18 @@ export function Settings({
             <div className="flex items-center space-x-2">
               <input
                 type="range"
+                name="temperature"
                 min="0"
                 max="2"
                 step="0.1"
                 value={modelConfig.temperature}
-                onChange={(e) => updateModelConfig({
-                  temperature: parseFloat(e.target.value)
-                })}
-                className="flex-1"
+                onChange={(e) => {
+                  updateModelConfig({
+                    temperature: parseFloat(e.target.value)
+                  });
+                  updateRangeProgress(e, 0, 2);
+                }}
+                className="flex-1 range-progress"
               />
               <input
                 type="number"
@@ -367,14 +423,18 @@ export function Settings({
             <div className="flex items-center space-x-2">
               <input
                 type="range"
+                name="top_p"
                 min="0"
                 max="1"
                 step="0.05"
                 value={modelConfig.top_p}
-                onChange={(e) => updateModelConfig({
-                  top_p: parseFloat(e.target.value)
-                })}
-                className="flex-1"
+                onChange={(e) => {
+                  updateModelConfig({
+                    top_p: parseFloat(e.target.value)
+                  });
+                  updateRangeProgress(e, 0, 1);
+                }}
+                className="flex-1 range-progress"
               />
               <input
                 type="number"
@@ -394,14 +454,18 @@ export function Settings({
             <div className="flex items-center space-x-2">
               <input
                 type="range"
+                name="max_tokens"
                 min="1"
                 max={maxContextTokens}
                 step="1"
                 value={modelConfig.max_tokens}
-                onChange={(e) => updateModelConfig({
-                  max_tokens: parseInt(e.target.value)
-                })}
-                className="flex-1"
+                onChange={(e) => {
+                  updateModelConfig({
+                    max_tokens: parseInt(e.target.value)
+                  });
+                  updateRangeProgress(e, 1, maxContextTokens);
+                }}
+                className="flex-1 range-progress"
               />
               <input
                 type="number"
@@ -428,14 +492,18 @@ export function Settings({
             <div className="flex items-center space-x-2">
               <input
                 type="range"
+                name="presence_penalty"
                 min="-2"
                 max="2"
                 step="0.1"
                 value={modelConfig.presence_penalty}
-                onChange={(e) => updateModelConfig({
-                  presence_penalty: parseFloat(e.target.value)
-                })}
-                className="flex-1"
+                onChange={(e) => {
+                  updateModelConfig({
+                    presence_penalty: parseFloat(e.target.value)
+                  });
+                  updateRangeProgress(e, -2, 2);
+                }}
+                className="flex-1 range-progress"
               />
               <input
                 type="number"
@@ -460,14 +528,18 @@ export function Settings({
             <div className="flex items-center space-x-2">
               <input
                 type="range"
+                name="frequency_penalty"
                 min="-2"
                 max="2"
                 step="0.1"
                 value={modelConfig.frequency_penalty}
-                onChange={(e) => updateModelConfig({
-                  frequency_penalty: parseFloat(e.target.value)
-                })}
-                className="flex-1"
+                onChange={(e) => {
+                  updateModelConfig({
+                    frequency_penalty: parseFloat(e.target.value)
+                  });
+                  updateRangeProgress(e, -2, 2);
+                }}
+                className="flex-1 range-progress"
               />
               <input
                 type="number"

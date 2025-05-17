@@ -1,15 +1,17 @@
-export const MODEL_CONTEXT_WINDOWS: { [key: string]: number } = {
-  // Common models - this list should be expanded and kept up-to-date
-  'openai/gpt-4': 8192,
-  'openai/gpt-4-32k': 32768,
-  'openai/gpt-4-turbo': 128000,
-  'openai/gpt-3.5-turbo': 16385, // gpt-3.5-turbo-1106, common one
-  'anthropic/claude-2': 200000, // Claude 2.1 has 200k
-  'anthropic/claude-instant-1': 100000,
-  'google/gemini-pro': 32768, // approximation, includes input and output
-  'mistralai/mistral-7b-instruct': 8000, // Approximation, common context length
-  'default_model_name': 8000 // A sensible default if model not found
+/**
+ * Retrieves the context window size from the model info dynamically.
+ * This approach relies on the context_length field from the model information
+ * provided by OpenRouter, eliminating the need for static mappings.
+ */
+export const getContextWindowFromModelInfo = (modelInfo: { context_length?: number }): number => {
+  if (!modelInfo || typeof modelInfo.context_length !== 'number') {
+    return DEFAULT_CONTEXT_WINDOW;
+  }
+  return modelInfo.context_length;
 };
+
+// Default context window size - average value that works reasonably for most models
+export const DEFAULT_CONTEXT_WINDOW = 16000;
 
 /**
  * Estimates the number of tokens in a string.
@@ -26,9 +28,10 @@ export const estimateTokens = (text: string): number => {
 
 /**
  * Retrieves the maximum context token limit for a given model.
- * @param modelName The name of the model.
+ * @param modelInfo The model information object containing the context_length field.
  * @returns The maximum token limit, or a default if the model is not found.
  */
-export const getModelContextLimit = (modelName: string): number => {
-  return MODEL_CONTEXT_WINDOWS[modelName] || MODEL_CONTEXT_WINDOWS['default_model_name'];
+export const getModelContextLimit = (modelInfo: { context_length?: number }): number => {
+  // Look up context window from our mapping or use default
+  return getContextWindowFromModelInfo(modelInfo);
 };

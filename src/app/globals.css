@@ -123,3 +123,72 @@
 .markdown-content blockquote {
   @apply border-l-4 border-primary pl-4 italic mb-4;
 }
+
+/* Range Slider Styles */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 5px;
+  background: #d3d3d3;
+  outline: none;
+  position: relative;
+  margin: 10px 0; /* Add margin to ensure proper vertical spacing */
+}
+
+/* For Webkit browsers like Chrome/Safari */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none; /* Standard property */
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6; /* Using blue-500 color */
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  margin-top: -4px; /* Fix vertical alignment */
+}
+
+/* For Firefox */
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6; /* Using blue-500 color */
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  margin-top: -4px; /* Fix vertical alignment */
+  transform: translateY(0); /* Ensure proper vertical positioning */
+}
+
+/* For the colored track in Webkit browsers */
+input[type="range"]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+/* For the colored track in Firefox */
+input[type="range"]::-moz-range-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+/* For dark mode compatibility */
+.dark input[type="range"] {
+  background: #4a4a4a;
+}
+
+/* Custom progress styling */
+input[type="range"].range-progress {
+  background: linear-gradient(to right, #3b82f6 var(--range-progress, 0%), #d3d3d3 var(--range-progress, 0%));
+}
+
+.dark input[type="range"].range-progress {
+  background: linear-gradient(to right, #60a5fa var(--range-progress, 0%), #4a4a4a var(--range-progress, 0%));
+}

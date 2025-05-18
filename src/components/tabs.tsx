@@ -84,7 +84,11 @@ export function Tabs() {
 
   // Update settings whenever active tab changes
   useEffect(() => {
-    updateModelSettings(activeTab)
+    // Only update settings when switching tabs, not when tabs state changes
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (activePrompt && !activePrompt.isLoading) {
+      updateModelSettings(activeTab);
+    }
   }, [activeTab, tabs]);
 
   const addTab = () => {

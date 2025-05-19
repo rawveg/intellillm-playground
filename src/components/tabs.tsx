@@ -27,11 +27,20 @@ interface Tab {
 }
 
 interface RunPromptResponse {
-  choices: Array<{
+  choices?: Array<{
     message: {
       content: string
     }
   }>
+  message?: {
+    content: string
+  }
+  content?: string
+  error?: {
+    message: string
+    code: number
+    metadata?: any
+  }
 }
 
 export function Tabs() {
@@ -205,13 +214,18 @@ export function Tabs() {
     setShowParamModal(false);
     
     // Execute the prompt with the processed content
+    console.log('[executePromptWithParams] Executing prompt with processed content:', processedContent);
     await executePrompt(processedContent);
   };
 
   // Extract the existing prompt execution logic to a separate function
   const executePrompt = async (promptContent: string) => {
+    console.log('[executePrompt] Starting execution with content:', promptContent);
     const activePrompt = tabs.find(tab => tab.id === activeTab);
-    if (!activePrompt) return;
+    if (!activePrompt) {
+      console.error('[executePrompt] No active prompt found');
+      return;
+    }
 
     setTabs(tabs.map(tab =>
       tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab
@@ -390,6 +404,22 @@ Content: ${snippet.text}
       // Ensure user prompt is always added - use the processed content with parameters replaced
       messages.push({ role: 'user', content: promptContent || " " }); // Use the processed content instead of activePrompt.content
 
+      console.log('[executePrompt] Preparing API call with:', {
+        model: selectedModel,
+        messagesCount: messages.length,
+        firstMessage: messages[0]?.role,
+        configKeys: Object.keys(modelConfig)
+      });
+      
+      // Use the model config as provided by the user
+      const requestBody = {
+        model: selectedModel,
+        messages,
+        ...modelConfig
+      };
+      
+      console.log('[executePrompt] Request body:', JSON.stringify(requestBody));
+      
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -397,20 +427,60 @@ Content: ${snippet.text}
           'Content-Type': 'application/json',
           'HTTP-Referer': window.location.origin,
         },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages,
-          ...modelConfig
-        })
+        body: JSON.stringify(requestBody)
       })
 
-      if (!response.ok) {
-        const error = await response.text()
-        throw new Error(`API request failed: ${error}`)
+      console.log('[executePrompt] Response status:', response.status);
+      
+      // Even if response.ok is true, we need to check for error in the response body
+      const responseText = await response.text();
+      console.log('[executePrompt] Raw response:', responseText);
+      
+      // Parse the response text to JSON
+      let data: RunPromptResponse;
+      try {
+        data = JSON.parse(responseText);
+        console.log('[executePrompt] Parsed response data:', data);
+        
+        // Check if the response contains an error object
+        if (data.error) {
+          console.error('[executePrompt] API returned error in response body:', data.error);
+          // Don't throw an error, instead return the error message as the result
+          return setTabs(tabs.map(tab =>
+            tab.id === activeTab ? { 
+              ...tab, 
+              result: `API Error: ${data.error?.message || JSON.stringify(data.error)}`,
+              isLoading: false 
+            } : tab
+          ));
+        }
+      } catch (e) {
+        if (e instanceof SyntaxError) {
+          console.error('[executePrompt] Failed to parse response JSON:', e);
+          throw new Error(`Failed to parse API response: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        // Re-throw if it's our own error
+        throw e;
       }
 
-      const data: RunPromptResponse = await response.json()
-      const result = data.choices[0]?.message?.content || 'No response received'
+      // This section is now handled above
+      
+      // Handle different response formats from OpenRouter API
+      let result = 'No response received';
+      console.log('[executePrompt] Checking response format...');
+      
+      if (data.choices && Array.isArray(data.choices) && data.choices.length > 0 && data.choices[0]?.message?.content) {
+        console.log('[executePrompt] Found standard OpenAI format response');
+        result = data.choices[0].message.content;
+      } else if (data.message?.content) {
+        console.log('[executePrompt] Found alternative format response');
+        result = data.message.content;
+      } else if (data.content) {
+        console.log('[executePrompt] Found simple format response');
+        result = data.content;
+      } else {
+        console.warn('[executePrompt] No recognized response format found in:', data);
+      }
       
       // Update the tab with the result
       setTabs(tabs.map(tab =>

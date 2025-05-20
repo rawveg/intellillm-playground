@@ -20,6 +20,7 @@ interface Tab {
   result?: string
   isLoading?: boolean
   isLibrary?: boolean
+  path?: string // Added path property to support folder structure
   metadata?: {
     model?: string
     [key: string]: any

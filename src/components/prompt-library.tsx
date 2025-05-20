@@ -336,7 +336,36 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
         onDrop={handleDrop(currentPath)}
       >
         {currentPath && (
-          <div className="mb-4">
+          <div 
+            className={`mb-4 rounded-lg p-1 ${
+              dropTargetPath === 'PARENT_FOLDER' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-700' : ''
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDropTargetPath('PARENT_FOLDER');
+              e.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDropTargetPath(null);
+              
+              if (!draggedItem) return;
+              
+              // Get the parent path
+              const pathParts = currentPath.split('/');
+              pathParts.pop();
+              const parentPath = pathParts.join('/');
+              
+              // If dropping onto parent folder, compose the full path
+              const destPath = parentPath ? `${parentPath}/${draggedItem.name}` : draggedItem.name;
+              
+              // Execute the move operation
+              moveItem(draggedItem.path, destPath);
+              setDraggedItem(null);
+            }}
+          >
             <button
               className="flex items-center p-2 text-blue-600 dark:text-blue-400 hover:underline"
               onClick={navigateUp}

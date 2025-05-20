@@ -10,6 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils';
 import { extractParameters, replaceParameters, ParameterInfo, extractParameterNames } from '@/lib/parameterUtils';
 import { ParameterModal } from './parameter-modal';
+import { SaveAsModal } from './save-as-modal';
 
 interface Tab {
   id: string
@@ -56,6 +57,9 @@ export function Tabs() {
   const [showParamModal, setShowParamModal] = useState(false);
   const [activeParameters, setActiveParameters] = useState<ParameterInfo[]>([]);
   const [parameterizedContent, setParameterizedContent] = useState<string>('');
+  
+  // Save As modal state
+  const [showSaveAsModal, setShowSaveAsModal] = useState(false);
 
   // Update model and settings when active tab changes
   const updateModelSettings = (tabId: string) => {
@@ -503,16 +507,17 @@ Content: ${snippet.text}
     const activePrompt = tabs.find(tab => tab.id === activeTab)
     if (!activePrompt || activePrompt.isLibrary) return
 
-    // Get the current path from the prompt if it exists
-    const currentPath = activePrompt.path || ''
-    const defaultPath = currentPath || activePrompt.name
+    // Show the SaveAsModal instead of using window.prompt
+    setShowSaveAsModal(true)
+  }
+
+  // Handle the actual save operation after path selection in modal
+  const handleSaveAs = async (promptPath: string) => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab)
+    if (!activePrompt) return
     
-    // Prompt for name with option for path
-    const promptPath = window.prompt(
-      'Enter a name for your prompt (use folder/name for specific location):', 
-      defaultPath
-    )
-    if (!promptPath) return // User cancelled
+    // Hide the modal
+    setShowSaveAsModal(false)
 
     // Get current model and settings
     const currentModel = localStorage.getItem('selected_model')
@@ -872,6 +877,16 @@ Content: ${snippet.text}
           tabName={tabs.find(tab => tab.id === activeTab)?.name || 'Prompt'}
           onSubmit={executePromptWithParams}
           onCancel={() => setShowParamModal(false)}
+        />
+      )}
+
+      {/* Save As Modal */}
+      {showSaveAsModal && (
+        <SaveAsModal
+          initialPath={tabs.find(tab => tab.id === activeTab)?.path || ''}
+          initialName={tabs.find(tab => tab.id === activeTab)?.name || ''}
+          onSave={handleSaveAs}
+          onCancel={() => setShowSaveAsModal(false)}
         />
       )}
     </div>

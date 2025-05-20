@@ -502,9 +502,13 @@ Content: ${snippet.text}
     const activePrompt = tabs.find(tab => tab.id === activeTab)
     if (!activePrompt || activePrompt.isLibrary) return
 
-    // Prompt for name
-    const promptName = window.prompt('Enter a name for your prompt:', activePrompt.name)
-    if (!promptName) return // User cancelled
+    // Prompt for name with option for path
+    const defaultName = activePrompt.name
+    const promptPath = window.prompt(
+      'Enter a name for your prompt (use folder/name for specific location):', 
+      defaultName
+    )
+    if (!promptPath) return // User cancelled
 
     // Get current model and settings
     const currentModel = localStorage.getItem('selected_model')
@@ -519,7 +523,7 @@ Content: ${snippet.text}
 
     try {
       const promptData = {
-        name: promptName,
+        name: promptPath,
         content: activePrompt.content,
         systemPrompt: activePrompt.systemPrompt,
         metadata
@@ -535,11 +539,14 @@ Content: ${snippet.text}
         throw new Error('Failed to save prompt')
       }
 
+      // Extract display name (without path) for the tab
+      const displayName = promptPath.split('/').pop() || promptPath
+      
       // Update the tab with new name and metadata
       setTabs(tabs.map(tab =>
         tab.id === activeTab ? {
           ...tab,
-          name: promptName,
+          name: displayName,
           metadata,
           systemPrompt: activePrompt.systemPrompt // Preserve system prompt
         } : tab
@@ -620,9 +627,12 @@ Content: ${snippet.text}
     // Expand system prompt section if the prompt has a system prompt
     setSystemPromptExpanded(!!prompt.systemPrompt)
     
+    // Extract display name (without path) for the tab
+    const displayName = prompt.name.split('/').pop() || prompt.name
+    
     // Check if we already have this prompt open
     const existingTab = tabs.find(tab => 
-      tab.name === prompt.name && 
+      (tab.name === displayName || tab.name === prompt.name) && 
       tab.content === prompt.content
     )
 
@@ -637,7 +647,7 @@ Content: ${snippet.text}
       const newId = String(tabs.length)
       setTabs([...tabs, { 
         id: newId, 
-        name: prompt.name,
+        name: displayName,
         content: prompt.content,
         systemPrompt: prompt.systemPrompt,
         metadata: prompt.metadata

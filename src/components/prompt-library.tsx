@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, MoreHorizontal } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
+import { FolderBrowserModal } from './folder-browser-modal'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -84,7 +85,13 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const moveSelectedPrompts = async (destinationPath: string) => {
-    if (!confirm(`Move ${selectedItems.length} selected prompt${selectedItems.length > 1 ? 's' : ''} to ${destinationPath}?`)) {
+    // Display different confirmation message based on whether it's the current path
+    const isSamePath = destinationPath === currentPath
+    const confirmMessage = isSamePath
+      ? `Move ${selectedItems.length} selected prompt${selectedItems.length > 1 ? 's' : ''} to this folder?`
+      : `Move ${selectedItems.length} selected prompt${selectedItems.length > 1 ? 's' : ''} to "${destinationPath || 'root'}"?`
+    
+    if (!confirm(confirmMessage)) {
       return
     }
 
@@ -389,14 +396,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
               </button>
               <button
                 className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center"
-                onClick={() => {
-                  // For simplicity in this implementation, use a simple prompt
-                  // In a real implementation, you'd use a proper modal dialog
-                  const destination = prompt('Enter destination folder path:', currentPath)
-                  if (destination !== null) {
-                    moveSelectedPrompts(destination)
-                  }
-                }}
+                onClick={() => setShowMoveModal(true)}
                 title="Move selected prompts"
               >
                 <Move className="w-3 h-3 mr-1" />
@@ -562,14 +562,18 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 <div className="flex items-center flex-1">
                   {!item.isDirectory && (
                     <div 
-                      className="mr-2 flex-shrink-0 w-5 h-5 border rounded cursor-pointer flex items-center justify-center"
+                      className={`mr-2 flex-shrink-0 w-5 h-5 border-2 ${
+                        selectedItems.includes(item.path) 
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
+                          : 'border-gray-400 dark:border-gray-500 hover:border-blue-400 dark:hover:border-blue-400'
+                      } rounded cursor-pointer flex items-center justify-center transition-colors`}
                       onClick={(e) => {
                         e.stopPropagation()
                         toggleItemSelection(item.path)
                       }}
                     >
                       {selectedItems.includes(item.path) && (
-                        <Check className="w-4 h-4 text-blue-500" />
+                        <Check className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                       )}
                     </div>
                   )}
@@ -597,6 +601,19 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           </div>
         )}
       </div>
+      
+      {/* Folder Browser Modal for Bulk Move */}
+      {showMoveModal && (
+        <FolderBrowserModal
+          initialPath={currentPath}
+          onSelect={(destination) => {
+            setShowMoveModal(false)
+            moveSelectedPrompts(destination)
+          }}
+          onCancel={() => setShowMoveModal(false)}
+          title={`Move ${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''}`}
+        />
+      )}
     </div>
   )
 }

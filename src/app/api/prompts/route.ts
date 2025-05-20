@@ -7,9 +7,17 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url)
     const dirPath = url.searchParams.get('path') || ''
+    const foldersOnly = url.searchParams.get('foldersOnly') === 'true'
     
+    // Get all contents first
     const contents = await listContents(decodeURIComponent(dirPath))
-    return NextResponse.json({ contents })
+    
+    // Filter contents if foldersOnly parameter is true
+    const filteredContents = foldersOnly 
+      ? contents.filter(item => item.isDirectory)
+      : contents
+    
+    return NextResponse.json({ contents: filteredContents })
   } catch (error) {
     console.error('Failed to list contents:', error)
     return NextResponse.json({ error: 'Failed to list contents' }, { status: 500 })
@@ -28,7 +36,7 @@ export async function POST(request: Request) {
       // Save a prompt
       const { name, content, systemPrompt, metadata } = data
       
-      const promptsDir = '/app/prompts'
+      const promptsDir = path.join(process.cwd(), 'prompts')
       const fileName = path.join(promptsDir, `${name}.prompt`)
       
       // Build file content with system prompt if present

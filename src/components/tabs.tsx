@@ -11,6 +11,7 @@ import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils';
 import { extractParameters, replaceParameters, ParameterInfo, extractParameterNames } from '@/lib/parameterUtils';
 import { ParameterModal } from './parameter-modal';
 import { SaveAsModal } from './save-as-modal';
+import type { PromptFile } from '@/lib/promptUtils'
 
 interface Tab {
   id: string
@@ -633,7 +634,88 @@ Content: ${snippet.text}
     input.click()
   }
 
-  const handlePromptSelect = (prompt: { name: string; content: string; systemPrompt?: string; metadata: any; path?: string }) => {
+  const handlePromptSelect = (prompt: PromptFile | PromptFile[]) => {
+    // Handle array of prompts for bulk operations
+    if (Array.isArray(prompt)) {
+      if (prompt.length === 0) return;
+      
+      // Process each prompt in the array
+      const newTabs: Tab[] = [];
+      const tabIds: string[] = [];
+      
+      prompt.forEach((p) => {
+        // Expand system prompt section if the prompt has a system prompt
+        setSystemPromptExpanded(!!p.systemPrompt)
+        
+        // Extract display name (without path) for the tab
+        const displayName = p.name.split('/').pop() || p.name
+        
+        // Check if we already have this prompt open
+        const existingTab = tabs.find(tab => 
+          (tab.name === displayName || tab.name === p.name) && 
+          tab.content === p.content
+        )
+
+        if (existingTab) {
+          // Update metadata of existing tab
+          setTabs(prev => prev.map(tab =>
+            tab.id === existingTab.id ? { 
+              ...tab, 
+              metadata: p.metadata,
+              path: p.path // Store full path
+            } : tab
+          ))
+          tabIds.push(existingTab.id);
+        } else {
+          // Create new tab object
+          const newId = String(tabs.length + newTabs.length)
+          newTabs.push({ 
+            id: newId, 
+            name: displayName,
+            content: p.content,
+            systemPrompt: p.systemPrompt,
+            metadata: p.metadata,
+            path: p.path, // Store full path
+          });
+          tabIds.push(newId);
+        }
+      });
+      
+      // Add all new tabs at once
+      if (newTabs.length > 0) {
+        setTabs(prev => [...prev, ...newTabs]);
+      }
+      
+      // Set active tab to the first of the newly opened tabs
+      if (tabIds.length > 0) {
+        setActiveTab(tabIds[0]);
+      }
+      
+      // Update model settings based on the first prompt
+      const firstPrompt = prompt[0];
+      if (firstPrompt.metadata?.model) {
+        localStorage.setItem('selected_model', firstPrompt.metadata.model);
+        window.dispatchEvent(new CustomEvent('modelChange', { 
+          detail: { model: firstPrompt.metadata.model } 
+        }));
+      }
+      
+      // Update model config settings
+      const modelConfig: Record<string, any> = { ...firstPrompt.metadata };
+      if (modelConfig.model !== undefined) delete modelConfig.model;
+      if (modelConfig.created !== undefined) delete modelConfig.created;
+      
+      if (Object.keys(modelConfig).length > 0) {
+        localStorage.setItem('model_config', JSON.stringify(modelConfig));
+        window.dispatchEvent(new CustomEvent('modelConfigChange', { 
+          detail: { config: modelConfig } 
+        }));
+      }
+      
+      return;
+    }
+    
+    // Original logic for handling a single prompt
     // Expand system prompt section if the prompt has a system prompt
     setSystemPromptExpanded(!!prompt.systemPrompt)
     
@@ -680,9 +762,9 @@ Content: ${snippet.text}
     }
 
     // Update model config settings
-    const modelConfig = { ...prompt.metadata }
-    delete modelConfig.model
-    delete modelConfig.created
+    const modelConfig: Record<string, any> = { ...prompt.metadata }
+    if (modelConfig.model !== undefined) delete modelConfig.model
+    if (modelConfig.created !== undefined) delete modelConfig.created
 
     // Only update if there are actual config settings
     if (Object.keys(modelConfig).length > 0) {

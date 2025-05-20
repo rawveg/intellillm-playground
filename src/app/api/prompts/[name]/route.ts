@@ -44,7 +44,7 @@ export async function PATCH(
     // Get destination path from request body
     const { destinationPath } = await request.json()
     
-    if (!destinationPath) {
+    if (destinationPath === undefined || destinationPath === null) {
       return NextResponse.json({ error: 'Destination path is required' }, { status: 400 })
     }
     

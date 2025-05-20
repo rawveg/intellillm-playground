@@ -53,6 +53,8 @@ export function Tabs() {
     { id: '1', name: 'New Prompt', content: '' }
   ])
   const [activeTab, setActiveTab] = useState('1')
+  // Keep track of the next tab ID to ensure uniqueness
+  const [nextTabId, setNextTabId] = useState(2)
   
   // Parameter modal state
   const [showParamModal, setShowParamModal] = useState(false);
@@ -107,9 +109,10 @@ export function Tabs() {
   }, [activeTab, tabs]);
 
   const addTab = () => {
-    const newId = String(tabs.length + 1)
+    const newId = String(nextTabId)
     setTabs([...tabs, { id: newId, name: 'New Prompt', content: '' }])
     setActiveTab(newId)
+    setNextTabId(nextTabId + 1)
   }
 
   const removeTab = (id: string) => {
@@ -623,13 +626,14 @@ Content: ${snippet.text}
       delete modelConfig.created
       localStorage.setItem('model_config', JSON.stringify(modelConfig))
 
-      const newId = String(tabs.length + 1)
+      const newId = String(nextTabId)
       setTabs([...tabs, { 
         id: newId, 
         name: file.name.replace(/\.prompt$/, ''),
         content: promptContent
       }])
       setActiveTab(newId)
+      setNextTabId(nextTabId + 1)
     }
     input.click()
   }
@@ -668,7 +672,7 @@ Content: ${snippet.text}
           tabIds.push(existingTab.id);
         } else {
           // Create new tab object
-          const newId = String(tabs.length + newTabs.length)
+          const newId = String(nextTabId + newTabs.length)
           newTabs.push({ 
             id: newId, 
             name: displayName,
@@ -684,6 +688,7 @@ Content: ${snippet.text}
       // Add all new tabs at once
       if (newTabs.length > 0) {
         setTabs(prev => [...prev, ...newTabs]);
+        setNextTabId(nextTabId + newTabs.length);
       }
       
       // Set active tab to the first of the newly opened tabs
@@ -740,7 +745,7 @@ Content: ${snippet.text}
       setActiveTab(existingTab.id)
     } else {
       // Create new tab
-      const newId = String(tabs.length)
+      const newId = String(nextTabId)
       setTabs([...tabs, { 
         id: newId, 
         name: displayName,
@@ -750,6 +755,7 @@ Content: ${snippet.text}
         path: prompt.path, // Store full path
       }])
       setActiveTab(newId)
+      setNextTabId(nextTabId + 1)
     }
 
     // Restore model settings if present

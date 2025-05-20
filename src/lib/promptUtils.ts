@@ -180,7 +180,6 @@ export async function listPrompts(): Promise<string[]> {
 export async function moveItem(sourcePath: string, destinationPath: string): Promise<void> {
   let sourcePathWithExt = sourcePath
   let fullSourcePath = path.join(PROMPTS_DIR, sourcePath)
-  let fullDestPath = path.join(PROMPTS_DIR, destinationPath)
   
   try {
     // Check if source is a directory
@@ -194,14 +193,23 @@ export async function moveItem(sourcePath: string, destinationPath: string): Pro
         fullSourcePath = path.join(PROMPTS_DIR, sourcePathWithExt)
       }
 
-      // For destination, ensure path has proper extension
-      if (await isDirectory(destinationPath)) {
-        // If destination is a directory, use the original filename
-        const fileName = path.basename(sourcePathWithExt)
-        fullDestPath = path.join(fullDestPath, fileName)
-      } else if (!destinationPath.endsWith('.prompt')) {
-        // If destination is a file path, ensure it has .prompt extension
-        fullDestPath = `${fullDestPath}.prompt`
+      // Get the filename from the source path
+      const fileName = path.basename(sourcePathWithExt)
+      let fullDestPath: string
+      
+      // Handle destination path based on whether it's root, directory, or file
+      if (destinationPath === '') {
+        // Moving to root directory
+        fullDestPath = path.join(PROMPTS_DIR, fileName)
+      } else if (await isDirectory(destinationPath)) {
+        // Moving to another directory
+        fullDestPath = path.join(PROMPTS_DIR, destinationPath, fileName)
+      } else {
+        // Moving to a specific file path
+        fullDestPath = path.join(PROMPTS_DIR, destinationPath)
+        if (!destinationPath.endsWith('.prompt')) {
+          fullDestPath += '.prompt'
+        }
       }
       
       // Ensure destination directory exists
@@ -211,7 +219,19 @@ export async function moveItem(sourcePath: string, destinationPath: string): Pro
       // Move the file
       await fs.promises.rename(fullSourcePath, fullDestPath)
     } else {
-      // Source is a directory, ensure destination parent directory exists
+      // Source is a directory
+      let fullDestPath: string
+      
+      // Handle destination path for directories
+      if (destinationPath === '') {
+        // Moving to root directory - use the source directory name
+        const dirName = path.basename(sourcePath)
+        fullDestPath = path.join(PROMPTS_DIR, dirName)
+      } else {
+        fullDestPath = path.join(PROMPTS_DIR, destinationPath)
+      }
+      
+      // Ensure destination parent directory exists
       const destDir = path.dirname(fullDestPath)
       await fs.promises.mkdir(destDir, { recursive: true })
       

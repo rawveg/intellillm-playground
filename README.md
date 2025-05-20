@@ -22,7 +22,7 @@
 
 - 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
 - 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration.
-- 📂 **Prompt Management**: Import/export prompts (with metadata), persistent model settings, and YAML frontmatter support.
+- 📂 **Prompt Management**: Import/export prompts (with metadata), folder organization, drag-and-drop file management, filtering/sorting controls, persistent model settings, and YAML frontmatter support.
 - 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax, which can be filled in at runtime via an intuitive modal interface.
 - 🧠 **Web Search Augmentation**: 
   - Toggleable real-time web search via DuckDuckGo, with search terms auto-extracted by an LLM meta-prompt.
@@ -66,6 +66,35 @@ The following parameter field types are fully implemented and available for use 
 - **radio**: Radio button group (single selection)
 
 Each field type can be combined with validation rules and default values as described below. See examples for usage syntax.
+
+## 📂 Prompt Library Organization
+
+The Prompt Library offers comprehensive organization features to help you manage your growing collection of prompts:
+
+### Folder Management
+
+- **Create Folders**: Organize your prompts in a logical folder structure
+- **Nested Folders**: Support for unlimited folder depth
+- **Intuitive Navigation**: Browse folders with breadcrumb navigation (not tree-view based)
+  - Root and current folder views
+  - Click on breadcrumb segments to jump to specific folder levels
+
+### Drag-and-Drop Organization
+
+- **Intuitive File Movement**: Drag and drop prompts between folders
+- **Visual Feedback**: Clear visual cues indicate valid drop targets
+- **Folder-to-Folder**: Move prompts directly between folders
+- **Bulk Operations**: Select and move multiple prompts simultaneously
+
+### Advanced Filtering & Sorting
+
+- **Text Filtering**: Quickly find prompts by typing in the filter box
+- **Smart Sorting**: Sort your prompts by:
+  - Name (A-Z or Z-A)
+  - Creation date (newest or oldest first)
+- **Directories First**: Folders always appear before files in the list for better organization
+
+All organizational structures are mirrored in the filesystem, ensuring your prompt organization persists across sessions and deployments.
 
 ## Integrated Web Search (powered by DuckDuckGo)
 
@@ -338,10 +367,11 @@ Some examples of what you can build:
 
 | Endpoint                  | Method | Description                           |
 |--------------------------|--------|---------------------------------------|
-| `/api/prompts`           | GET    | List all prompts                      |
-| `/api/prompts`           | POST   | Save a new prompt                     |
+| `/api/prompts`           | GET    | List all prompts or folder contents   |
+| `/api/prompts`           | POST   | Save a new prompt or create folder    |
 | `/api/prompts/[name]`    | GET    | Get a specific prompt by name         |
-| `/api/prompts/[name]`    | DELETE | Delete a prompt by name               |
+| `/api/prompts/[name]`    | DELETE | Delete a prompt/folder by name        |
+| `/api/prompts/[name]`    | PATCH  | Move a prompt/folder to new location  |
 | `/api/search`            | POST   | Search DuckDuckGo and return snippets |
 
 ---

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus } from 'lucide-react'
+import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 
 interface PromptLibraryProps {
@@ -53,6 +53,10 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     setCurrentPath(pathParts.join('/'))
   }
 
+  const navigateHome = () => {
+    setCurrentPath('')
+  }
+
   const loadPrompt = async (filePath: string) => {
     try {
       const encodedPath = encodeURIComponent(filePath)
@@ -104,6 +108,17 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     }
   }
 
+  // Get the breadcrumb parts for navigation
+  const getBreadcrumbs = () => {
+    if (!currentPath) return []
+    
+    const parts = currentPath.split('/')
+    return parts.map((part, index) => {
+      const path = parts.slice(0, index + 1).join('/')
+      return { name: part, path }
+    })
+  }
+
   if (loading) {
     return <div className="p-4">Loading contents...</div>
   }
@@ -112,18 +127,29 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     return <div className="p-4 text-red-500">{error}</div>
   }
 
+  const breadcrumbs = getBreadcrumbs()
+
   return (
     <div className="h-full flex flex-col bg-background">
       <div className="p-4 border-b dark:border-gray-800">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold">Prompt Library</h2>
-          <button
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-            onClick={() => setShowNewFolderInput(!showNewFolderInput)}
-            title="Create new folder"
-          >
-            <FolderPlus className="w-5 h-5" />
-          </button>
+          <div className="flex space-x-2">
+            <button
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+              onClick={navigateHome}
+              title="Go to root folder"
+            >
+              <Home className="w-5 h-5" />
+            </button>
+            <button
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+              onClick={() => setShowNewFolderInput(!showNewFolderInput)}
+              title="Create new folder"
+            >
+              <FolderPlus className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         
         {showNewFolderInput && (
@@ -145,9 +171,27 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           </div>
         )}
         
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {currentPath ? `Current folder: ${currentPath}` : 'Root folder'}
-        </p>
+        {/* Breadcrumb navigation */}
+        <div className="flex items-center mt-2 overflow-x-auto whitespace-nowrap text-sm">
+          <button 
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+            onClick={navigateHome}
+          >
+            root
+          </button>
+          
+          {breadcrumbs.map((crumb, index) => (
+            <div key={crumb.path} className="flex items-center">
+              <span className="mx-1">/</span>
+              <button 
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+                onClick={() => navigateToFolder(crumb.path)}
+              >
+                {crumb.name}
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
       
       <div className="flex-1 overflow-auto p-4">
@@ -187,9 +231,9 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                     onClick={() => item.isDirectory ? navigateToFolder(item.path) : loadPrompt(item.path)}
                   >
                     {item.isDirectory ? (
-                      <Folder className="w-5 h-5 mr-2" />
+                      <Folder className="w-5 h-5 mr-2 text-yellow-500" />
                     ) : (
-                      <FileText className="w-5 h-5 mr-2" />
+                      <FileText className="w-5 h-5 mr-2 text-blue-500" />
                     )}
                     <span>{item.name}</span>
                   </button>

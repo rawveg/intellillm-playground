@@ -20,19 +20,26 @@ export interface PromptFile {
   metadata: PromptMetadata
   content: string
   systemPrompt?: string
+  path?: string // Full path relative to the prompts directory
 }
 
 export interface FileEntry {
   name: string
   isDirectory: boolean
-  path: string
+  path: string // Path relative to the prompts directory
 }
 
+/**
+ * Create a folder in the prompts directory
+ */
 export async function createFolder(folderPath: string): Promise<void> {
   const fullPath = path.join(PROMPTS_DIR, folderPath)
   await fs.promises.mkdir(fullPath, { recursive: true })
 }
 
+/**
+ * Save a prompt file to a specific path
+ */
 export async function savePrompt(name: string, content: string, metadata: PromptMetadata, systemPrompt?: string): Promise<void> {
   let fileContent = `---
 ${YAML.stringify(metadata)}---
@@ -54,6 +61,9 @@ ${systemPrompt}`
   await fs.promises.writeFile(filePath, fileContent, 'utf-8')
 }
 
+/**
+ * Load a prompt file from a given path
+ */
 export async function loadPrompt(filePath: string): Promise<PromptFile> {
   // Add .prompt extension if it's not already present
   if (!filePath.endsWith('.prompt')) {
@@ -68,37 +78,50 @@ export async function loadPrompt(filePath: string): Promise<PromptFile> {
   const [userPrompt, systemPrompt] = promptContent.split('## System Prompt').map(s => s.trim())
   
   // Get just the filename without extension for display
-  const name = path.basename(filePath, '.prompt')
+  const displayName = path.basename(filePath, '.prompt')
   
   return {
-    name,
+    name: displayName,
+    path: filePath.replace(/\.prompt$/, ''), // Store the full path without extension
     metadata: frontmatter ? YAML.parse(frontmatter) : {},
     content: userPrompt,
     systemPrompt: systemPrompt || undefined
   }
 }
 
+/**
+ * List contents of a directory in the prompts folder
+ */
 export async function listContents(dirPath: string = ''): Promise<FileEntry[]> {
   const fullPath = path.join(PROMPTS_DIR, dirPath)
-  const entries = await fs.promises.readdir(fullPath, { withFileTypes: true })
   
-  return Promise.all(entries.map(async entry => {
-    const entryPath = path.join(dirPath, entry.name)
-    const isDirectory = entry.isDirectory()
+  try {
+    const entries = await fs.promises.readdir(fullPath, { withFileTypes: true })
     
-    // Only include .prompt files, but show all directories
-    if (!isDirectory && !entry.name.endsWith('.prompt')) {
-      return null
-    }
-    
-    return {
-      name: isDirectory ? entry.name : entry.name.replace(/\.prompt$/, ''),
-      isDirectory,
-      path: entryPath
-    }
-  })).then(entries => entries.filter(Boolean) as FileEntry[])
+    return Promise.all(entries.map(async entry => {
+      const entryPath = path.join(dirPath, entry.name)
+      const isDirectory = entry.isDirectory()
+      
+      // Only include .prompt files, but show all directories
+      if (!isDirectory && !entry.name.endsWith('.prompt')) {
+        return null
+      }
+      
+      return {
+        name: isDirectory ? entry.name : entry.name.replace(/\.prompt$/, ''),
+        isDirectory,
+        path: entryPath
+      }
+    })).then(entries => entries.filter(Boolean) as FileEntry[])
+  } catch (error) {
+    console.error(`Error listing directory ${fullPath}:`, error)
+    return []
+  }
 }
 
+/**
+ * Check if a path is a directory
+ */
 export async function isDirectory(itemPath: string): Promise<boolean> {
   try {
     const fullPath = path.join(PROMPTS_DIR, itemPath)
@@ -109,15 +132,25 @@ export async function isDirectory(itemPath: string): Promise<boolean> {
   }
 }
 
+/**
+ * Delete an item (file or directory) from the prompts folder
+ */
 export async function deleteItem(itemPath: string): Promise<void> {
   const fullPath = path.join(PROMPTS_DIR, itemPath)
   
-  if (await isDirectory(itemPath)) {
-    await fs.promises.rm(fullPath, { recursive: true })
-  } else {
-    // For backward compatibility, try with .prompt extension if not already included
-    const filePath = itemPath.endsWith('.prompt') ? fullPath : `${fullPath}.prompt`
-    await fs.promises.unlink(filePath)
+  try {
+    const isDir = await isDirectory(itemPath)
+    
+    if (isDir) {
+      await fs.promises.rm(fullPath, { recursive: true })
+    } else {
+      // For backward compatibility, try with .prompt extension if not already included
+      const filePath = itemPath.endsWith('.prompt') ? fullPath : `${fullPath}.prompt`
+      await fs.promises.unlink(filePath)
+    }
+  } catch (error) {
+    console.error(`Error deleting ${fullPath}:`, error)
+    throw error
   }
 }
 

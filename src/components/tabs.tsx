@@ -502,11 +502,14 @@ Content: ${snippet.text}
     const activePrompt = tabs.find(tab => tab.id === activeTab)
     if (!activePrompt || activePrompt.isLibrary) return
 
+    // Get the current path from the prompt if it exists
+    const currentPath = activePrompt.path || ''
+    const defaultPath = currentPath || activePrompt.name
+    
     // Prompt for name with option for path
-    const defaultName = activePrompt.name
     const promptPath = window.prompt(
       'Enter a name for your prompt (use folder/name for specific location):', 
-      defaultName
+      defaultPath
     )
     if (!promptPath) return // User cancelled
 
@@ -542,11 +545,12 @@ Content: ${snippet.text}
       // Extract display name (without path) for the tab
       const displayName = promptPath.split('/').pop() || promptPath
       
-      // Update the tab with new name and metadata
+      // Update the tab with new name, path, and metadata
       setTabs(tabs.map(tab =>
         tab.id === activeTab ? {
           ...tab,
           name: displayName,
+          path: promptPath, // Store full path
           metadata,
           systemPrompt: activePrompt.systemPrompt // Preserve system prompt
         } : tab
@@ -623,7 +627,7 @@ Content: ${snippet.text}
     input.click()
   }
 
-  const handlePromptSelect = (prompt: { name: string; content: string; systemPrompt?: string; metadata: any }) => {
+  const handlePromptSelect = (prompt: { name: string; content: string; systemPrompt?: string; metadata: any; path?: string }) => {
     // Expand system prompt section if the prompt has a system prompt
     setSystemPromptExpanded(!!prompt.systemPrompt)
     
@@ -639,7 +643,11 @@ Content: ${snippet.text}
     if (existingTab) {
       // Update metadata of existing tab
       setTabs(tabs.map(tab =>
-        tab.id === existingTab.id ? { ...tab, metadata: prompt.metadata } : tab
+        tab.id === existingTab.id ? { 
+          ...tab, 
+          metadata: prompt.metadata,
+          path: prompt.path // Store full path
+        } : tab
       ))
       setActiveTab(existingTab.id)
     } else {
@@ -650,7 +658,8 @@ Content: ${snippet.text}
         name: displayName,
         content: prompt.content,
         systemPrompt: prompt.systemPrompt,
-        metadata: prompt.metadata
+        metadata: prompt.metadata,
+        path: prompt.path, // Store full path
       }])
       setActiveTab(newId)
     }

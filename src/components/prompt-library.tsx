@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, Tabs, Move, MoreHorizontal } from 'lucide-react'
+import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, MoreHorizontal } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 
 interface PromptLibraryProps {
@@ -384,7 +384,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 onClick={openSelectedPrompts}
                 title="Open selected prompts in tabs"
               >
-                <Tabs className="w-3 h-3 mr-1" />
+                <PanelTop className="w-3 h-3 mr-1" />
                 Open in Tabs
               </button>
               <button

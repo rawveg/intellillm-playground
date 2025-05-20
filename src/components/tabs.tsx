@@ -11,6 +11,7 @@ import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils';
 import { extractParameters, replaceParameters, ParameterInfo, extractParameterNames } from '@/lib/parameterUtils';
 import { ParameterModal } from './parameter-modal';
 import { SaveAsModal } from './save-as-modal';
+import type { PromptFile } from '@/lib/promptUtils'
 
 interface Tab {
   id: string
@@ -700,9 +701,9 @@ Content: ${snippet.text}
       }
       
       // Update model config settings
-      const modelConfig = { ...firstPrompt.metadata };
-      delete modelConfig.model;
-      delete modelConfig.created;
+      const modelConfig: Record<string, any> = { ...firstPrompt.metadata };
+      if (modelConfig.model !== undefined) delete modelConfig.model;
+      if (modelConfig.created !== undefined) delete modelConfig.created;
       
       if (Object.keys(modelConfig).length > 0) {
         localStorage.setItem('model_config', JSON.stringify(modelConfig));
@@ -761,9 +762,9 @@ Content: ${snippet.text}
     }
 
     // Update model config settings
-    const modelConfig = { ...prompt.metadata }
-    delete modelConfig.model
-    delete modelConfig.created
+    const modelConfig: Record<string, any> = { ...prompt.metadata }
+    if (modelConfig.model !== undefined) delete modelConfig.model
+    if (modelConfig.created !== undefined) delete modelConfig.created
 
     // Only update if there are actual config settings
     if (Object.keys(modelConfig).length > 0) {

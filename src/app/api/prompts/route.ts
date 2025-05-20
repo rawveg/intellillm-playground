@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       // Save a prompt
       const { name, content, systemPrompt, metadata } = data
       
-      const promptsDir = '/app/prompts'
+      const promptsDir = path.join(process.cwd(), 'prompts')
       const fileName = path.join(promptsDir, `${name}.prompt`)
       
       // Build file content with system prompt if present

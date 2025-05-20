@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import YAML from 'yaml'
 
-const PROMPTS_DIR = '/app/prompts'
+const PROMPTS_DIR = path.join(process.cwd(), 'prompts')
 
 // Ensure prompts directory exists
 if (!fs.existsSync(PROMPTS_DIR)) {

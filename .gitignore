@@ -76,3 +76,6 @@ next-env.d.ts
 /prompts
 scratchpad.md
 /.windsurf
+
+# Test directories
+/test_prompts

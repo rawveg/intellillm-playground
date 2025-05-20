@@ -20,6 +20,7 @@ interface Tab {
   result?: string
   isLoading?: boolean
   isLibrary?: boolean
+  path?: string // Added path property to support folder structure
   metadata?: {
     model?: string
     [key: string]: any
@@ -502,9 +503,16 @@ Content: ${snippet.text}
     const activePrompt = tabs.find(tab => tab.id === activeTab)
     if (!activePrompt || activePrompt.isLibrary) return
 
-    // Prompt for name
-    const promptName = window.prompt('Enter a name for your prompt:', activePrompt.name)
-    if (!promptName) return // User cancelled
+    // Get the current path from the prompt if it exists
+    const currentPath = activePrompt.path || ''
+    const defaultPath = currentPath || activePrompt.name
+    
+    // Prompt for name with option for path
+    const promptPath = window.prompt(
+      'Enter a name for your prompt (use folder/name for specific location):', 
+      defaultPath
+    )
+    if (!promptPath) return // User cancelled
 
     // Get current model and settings
     const currentModel = localStorage.getItem('selected_model')
@@ -519,7 +527,7 @@ Content: ${snippet.text}
 
     try {
       const promptData = {
-        name: promptName,
+        name: promptPath,
         content: activePrompt.content,
         systemPrompt: activePrompt.systemPrompt,
         metadata
@@ -535,11 +543,15 @@ Content: ${snippet.text}
         throw new Error('Failed to save prompt')
       }
 
-      // Update the tab with new name and metadata
+      // Extract display name (without path) for the tab
+      const displayName = promptPath.split('/').pop() || promptPath
+      
+      // Update the tab with new name, path, and metadata
       setTabs(tabs.map(tab =>
         tab.id === activeTab ? {
           ...tab,
-          name: promptName,
+          name: displayName,
+          path: promptPath, // Store full path
           metadata,
           systemPrompt: activePrompt.systemPrompt // Preserve system prompt
         } : tab
@@ -616,20 +628,27 @@ Content: ${snippet.text}
     input.click()
   }
 
-  const handlePromptSelect = (prompt: { name: string; content: string; systemPrompt?: string; metadata: any }) => {
+  const handlePromptSelect = (prompt: { name: string; content: string; systemPrompt?: string; metadata: any; path?: string }) => {
     // Expand system prompt section if the prompt has a system prompt
     setSystemPromptExpanded(!!prompt.systemPrompt)
     
+    // Extract display name (without path) for the tab
+    const displayName = prompt.name.split('/').pop() || prompt.name
+    
     // Check if we already have this prompt open
     const existingTab = tabs.find(tab => 
-      tab.name === prompt.name && 
+      (tab.name === displayName || tab.name === prompt.name) && 
       tab.content === prompt.content
     )
 
     if (existingTab) {
       // Update metadata of existing tab
       setTabs(tabs.map(tab =>
-        tab.id === existingTab.id ? { ...tab, metadata: prompt.metadata } : tab
+        tab.id === existingTab.id ? { 
+          ...tab, 
+          metadata: prompt.metadata,
+          path: prompt.path // Store full path
+        } : tab
       ))
       setActiveTab(existingTab.id)
     } else {
@@ -637,10 +656,11 @@ Content: ${snippet.text}
       const newId = String(tabs.length)
       setTabs([...tabs, { 
         id: newId, 
-        name: prompt.name,
+        name: displayName,
         content: prompt.content,
         systemPrompt: prompt.systemPrompt,
-        metadata: prompt.metadata
+        metadata: prompt.metadata,
+        path: prompt.path, // Store full path
       }])
       setActiveTab(newId)
     }

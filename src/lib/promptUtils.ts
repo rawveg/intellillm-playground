@@ -102,8 +102,8 @@ export async function listContents(dirPath: string = ''): Promise<FileEntry[]> {
       const entryPath = path.join(dirPath, entry.name)
       const isDirectory = entry.isDirectory()
       
-      // Only include .prompt files, but show all directories
-      if (!isDirectory && !entry.name.endsWith('.prompt')) {
+      // Skip hidden directories (starting with a dot) and non-.prompt files
+      if ((isDirectory && entry.name.startsWith('.')) || (!isDirectory && !entry.name.endsWith('.prompt'))) {
         return null
       }
       

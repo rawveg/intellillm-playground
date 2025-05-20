@@ -178,7 +178,8 @@ export async function listPrompts(): Promise<string[]> {
  * Move an item (file or directory) from one location to another
  */
 export async function moveItem(sourcePath: string, destinationPath: string): Promise<void> {
-  const fullSourcePath = path.join(PROMPTS_DIR, sourcePath)
+  let sourcePathWithExt = sourcePath
+  let fullSourcePath = path.join(PROMPTS_DIR, sourcePath)
   let fullDestPath = path.join(PROMPTS_DIR, destinationPath)
   
   try {
@@ -189,14 +190,14 @@ export async function moveItem(sourcePath: string, destinationPath: string): Pro
     if (!isSourceDir) {
       // Source is a file, add .prompt extension if not present
       if (!sourcePath.endsWith('.prompt')) {
-        sourcePath = `${sourcePath}.prompt`
+        sourcePathWithExt = `${sourcePath}.prompt`
+        fullSourcePath = path.join(PROMPTS_DIR, sourcePathWithExt)
       }
-      const fullSourcePath = path.join(PROMPTS_DIR, sourcePath)
 
       // For destination, ensure path has proper extension
       if (await isDirectory(destinationPath)) {
         // If destination is a directory, use the original filename
-        const fileName = path.basename(sourcePath)
+        const fileName = path.basename(sourcePathWithExt)
         fullDestPath = path.join(fullDestPath, fileName)
       } else if (!destinationPath.endsWith('.prompt')) {
         // If destination is a file path, ensure it has .prompt extension

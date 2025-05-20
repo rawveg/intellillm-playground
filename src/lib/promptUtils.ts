@@ -27,6 +27,7 @@ export interface FileEntry {
   name: string
   isDirectory: boolean
   path: string // Path relative to the prompts directory
+  created?: string // Optional timestamp for when the file was created
 }
 
 /**
@@ -107,10 +108,21 @@ export async function listContents(dirPath: string = ''): Promise<FileEntry[]> {
         return null
       }
       
+      // Get the creation date if available
+      let created: string | undefined = undefined
+      try {
+        const fullEntryPath = path.join(PROMPTS_DIR, entryPath)
+        const stats = await fs.promises.stat(fullEntryPath)
+        created = stats.birthtime.toISOString()
+      } catch (error) {
+        // Silently fail and just don't include the created date
+      }
+      
       return {
         name: isDirectory ? entry.name : entry.name.replace(/\.prompt$/, ''),
         isDirectory,
-        path: entryPath
+        path: entryPath,
+        created
       }
     })).then(entries => entries.filter(Boolean) as FileEntry[])
   } catch (error) {
@@ -160,6 +172,55 @@ export async function listPrompts(): Promise<string[]> {
   return entries
     .filter(entry => !entry.isDirectory)
     .map(entry => entry.isDirectory ? entry.path : `${entry.path}.prompt`)
+}
+
+/**
+ * Move an item (file or directory) from one location to another
+ */
+export async function moveItem(sourcePath: string, destinationPath: string): Promise<void> {
+  const fullSourcePath = path.join(PROMPTS_DIR, sourcePath)
+  let fullDestPath = path.join(PROMPTS_DIR, destinationPath)
+  
+  try {
+    // Check if source is a directory
+    const isSourceDir = await isDirectory(sourcePath)
+    
+    // If source is a file, ensure proper extension handling
+    if (!isSourceDir) {
+      // Source is a file, add .prompt extension if not present
+      if (!sourcePath.endsWith('.prompt')) {
+        sourcePath = `${sourcePath}.prompt`
+      }
+      const fullSourcePath = path.join(PROMPTS_DIR, sourcePath)
+
+      // For destination, ensure path has proper extension
+      if (await isDirectory(destinationPath)) {
+        // If destination is a directory, use the original filename
+        const fileName = path.basename(sourcePath)
+        fullDestPath = path.join(fullDestPath, fileName)
+      } else if (!destinationPath.endsWith('.prompt')) {
+        // If destination is a file path, ensure it has .prompt extension
+        fullDestPath = `${fullDestPath}.prompt`
+      }
+      
+      // Ensure destination directory exists
+      const destDir = path.dirname(fullDestPath)
+      await fs.promises.mkdir(destDir, { recursive: true })
+      
+      // Move the file
+      await fs.promises.rename(fullSourcePath, fullDestPath)
+    } else {
+      // Source is a directory, ensure destination parent directory exists
+      const destDir = path.dirname(fullDestPath)
+      await fs.promises.mkdir(destDir, { recursive: true })
+      
+      // Move the directory
+      await fs.promises.rename(fullSourcePath, fullDestPath)
+    }
+  } catch (error) {
+    console.error(`Error moving ${sourcePath} to ${destinationPath}:`, error)
+    throw error
+  }
 }
 
 export async function deletePrompt(name: string): Promise<void> {

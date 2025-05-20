@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ChevronLeft, Folder, Home, Save } from 'lucide-react'
+import { X, ChevronLeft, Folder, Home, Save, FolderPlus, AlertCircle } from 'lucide-react'
 
 interface SaveAsModalProps {
   initialPath: string
@@ -23,6 +23,10 @@ export function SaveAsModal({ initialPath, initialName, onSave, onCancel }: Save
   const [contents, setContents] = useState<FileEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [folderError, setFolderError] = useState<string | null>(null)
 
   // Extract initial directory path and filename from initialPath
   useEffect(() => {
@@ -33,8 +37,10 @@ export function SaveAsModal({ initialPath, initialName, onSave, onCancel }: Save
       
       setCurrentPath(dirPath)
       setPromptName(name)
+    } else {
+      setPromptName(initialName || '')
     }
-  }, [initialPath])
+  }, [initialPath, initialName])
 
   // Load contents when currentPath changes
   useEffect(() => {
@@ -46,11 +52,17 @@ export function SaveAsModal({ initialPath, initialName, onSave, onCancel }: Save
       setLoading(true)
       const encodedPath = encodeURIComponent(dirPath)
       const response = await fetch(`/api/prompts?path=${encodedPath}`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to load contents')
+      }
+      
       const data = await response.json()
       
       setContents(data.contents || [])
       setError(null)
     } catch (err) {
+      console.error('Failed to load contents:', err)
       setError('Failed to load contents')
     } finally {
       setLoading(false)
@@ -74,13 +86,77 @@ export function SaveAsModal({ initialPath, initialName, onSave, onCancel }: Save
     setCurrentPath('')
   }
 
-  const handleSave = () => {
-    if (!promptName.trim()) return
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) {
+      setFolderError('Folder name cannot be empty')
+      return
+    }
 
+    // Basic validation for folder name
+    if (/[<>:"\/\\|?*]/.test(newFolderName)) {
+      setFolderError('Folder name contains invalid characters')
+      return
+    }
+
+    try {
+      const folderPath = currentPath 
+        ? `${currentPath}/${newFolderName.trim()}`
+        : newFolderName.trim()
+
+      const response = await fetch('/api/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          type: 'folder', 
+          path: folderPath
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create folder')
+      }
+
+      // Reset and reload
+      setNewFolderName('')
+      setShowNewFolderInput(false)
+      setFolderError(null)
+      loadContents(currentPath)
+    } catch (err: any) {
+      console.error('Failed to create folder:', err)
+      setFolderError(err.message || 'Failed to create folder')
+    }
+  }
+
+  const handleSave = async () => {
+    if (!promptName.trim()) return
+    
+    // Validate filename
+    if (/[<>:"\\|?*]/.test(promptName)) {
+      setError('File name contains invalid characters')
+      return
+    }
+
+    setSaving(true)
+    
     const fullPath = currentPath 
       ? `${currentPath}/${promptName.trim()}`
       : promptName.trim()
       
+    // Check if file already exists
+    const fileExists = contents.some(item => 
+      !item.isDirectory && 
+      item.name.toLowerCase() === promptName.trim().toLowerCase()
+    )
+    
+    if (fileExists) {
+      const confirmOverwrite = window.confirm('A prompt with this name already exists. Do you want to overwrite it?')
+      if (!confirmOverwrite) {
+        setSaving(false)
+        return
+      }
+    }
+    
     onSave(fullPath)
   }
 
@@ -115,43 +191,83 @@ export function SaveAsModal({ initialPath, initialName, onSave, onCancel }: Save
         </div>
 
         {/* Path navigation */}
-        <div className="flex items-center mb-4">
-          <button
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 mr-2"
-            onClick={navigateHome}
-            title="Go to root folder"
-          >
-            <Home className="w-5 h-5" />
-          </button>
-          
-          <div className="flex items-center flex-wrap overflow-x-auto whitespace-nowrap text-sm">
-            <button 
-              className="text-blue-600 dark:text-blue-400 hover:underline"
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center">
+            <button
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 mr-2"
               onClick={navigateHome}
+              title="Go to root folder"
             >
-              root
+              <Home className="w-5 h-5" />
             </button>
             
-            {breadcrumbs.map((crumb, index) => (
-              <div key={crumb.path} className="flex items-center">
-                <span className="mx-1">/</span>
-                <button 
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
-                  onClick={() => navigateToFolder(crumb.path)}
-                >
-                  {crumb.name}
-                </button>
-              </div>
-            ))}
+            <div className="flex items-center flex-wrap overflow-x-auto whitespace-nowrap text-sm">
+              <button 
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+                onClick={navigateHome}
+              >
+                root
+              </button>
+              
+              {breadcrumbs.map((crumb, index) => (
+                <div key={crumb.path} className="flex items-center">
+                  <span className="mx-1">/</span>
+                  <button 
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                    onClick={() => navigateToFolder(crumb.path)}
+                  >
+                    {crumb.name}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
+          
+          <button
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+            onClick={() => setShowNewFolderInput(!showNewFolderInput)}
+            title="Create new folder"
+          >
+            <FolderPlus className="w-5 h-5" />
+          </button>
         </div>
+        
+        {/* Folder creation input */}
+        {showNewFolderInput && (
+          <div className="mb-4">
+            <div className="flex items-center">
+              <input
+                type="text"
+                className="flex-1 p-2 border rounded-l dark:bg-gray-700 dark:border-gray-600"
+                placeholder="New folder name"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
+              />
+              <button
+                className="px-3 py-2 border-t border-r border-b rounded-r bg-blue-500 hover:bg-blue-600 text-white dark:bg-blue-600 dark:hover:bg-blue-700"
+                onClick={handleCreateFolder}
+              >
+                Create
+              </button>
+            </div>
+            {folderError && (
+              <div className="mt-1 text-red-500 text-xs">
+                {folderError}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Directory listing */}
         <div className="border rounded-lg overflow-hidden mb-4 max-h-60 overflow-y-auto">
           {loading ? (
             <div className="p-4 text-center">Loading...</div>
           ) : error ? (
-            <div className="p-4 text-center text-red-500">{error}</div>
+            <div className="p-4 text-center text-red-500 flex items-center justify-center">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              {error}
+            </div>
           ) : directories.length === 0 ? (
             <div className="p-4 text-center text-gray-500 dark:text-gray-400">
               No folders in this directory
@@ -197,16 +313,26 @@ export function SaveAsModal({ initialPath, initialName, onSave, onCancel }: Save
             </span>
             <input
               type="text"
-              className="flex-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              className={`flex-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600 ${
+                error && !error.includes('load contents') ? 'border-red-500' : ''
+              }`}
               placeholder="Enter prompt name"
               value={promptName}
-              onChange={(e) => setPromptName(e.target.value)}
+              onChange={(e) => {
+                setPromptName(e.target.value)
+                setError(null)
+              }}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck="false"
             />
           </div>
+          {error && !error.includes('load contents') && (
+            <div className="mt-1 text-red-500 text-xs">
+              {error}
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -215,17 +341,18 @@ export function SaveAsModal({ initialPath, initialName, onSave, onCancel }: Save
             type="button"
             onClick={onCancel}
             className="px-3 py-1.5 border rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            disabled={saving}
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
-            disabled={!promptName.trim()}
+            disabled={!promptName.trim() || saving}
             className="px-3 py-1.5 bg-blue-600 text-sm text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
           >
             <Save className="w-4 h-4 mr-1" />
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>

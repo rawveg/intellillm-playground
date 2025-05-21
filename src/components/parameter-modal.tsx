@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, RotateCcw } from 'lucide-react'
+import { X, RotateCcw, AlertTriangle } from 'lucide-react'
 import { ParameterInfo, validateParameterValue, processDefaultValue } from '@/lib/parameterUtils'
+import { estimatePromptTokens, estimateFileTokens, getCurrentModelTokenLimit } from '@/lib/tokenUtils'
 
 /**
  * Format parameter name for better readability
@@ -27,6 +28,8 @@ const formatParameterName = (paramName: string): string => {
 
 interface ParameterModalProps {
   parameters: ParameterInfo[]
+  promptText: string
+  systemPrompt?: string
   tabId: string
   tabName: string
   onSubmit: (values: Record<string, string>) => void
@@ -105,10 +108,28 @@ const generateYearOptions = (pastYears: number = 5, futureYears: number = 5): { 
   return years;
 };
 
-export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel }: ParameterModalProps) {
+export function ParameterModal({ parameters, promptText, systemPrompt, tabId, tabName, onSubmit, onCancel }: ParameterModalProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [hasStoredValues, setHasStoredValues] = useState(false);
+  const [tokenEstimate, setTokenEstimate] = useState(0);
+  const [tokenWarning, setTokenWarning] = useState<string | null>(null);
+  const modelTokenLimit = getCurrentModelTokenLimit();
+
+  // Calculate token estimates whenever values change
+  useEffect(() => {
+    const tokenInfo = estimatePromptTokens(promptText, systemPrompt, values);
+    setTokenEstimate(tokenInfo.total);
+    
+    // Set warning if token count is close to or exceeds limit
+    if (tokenInfo.total > modelTokenLimit) {
+      setTokenWarning(`Exceeds model limit by ${tokenInfo.total - modelTokenLimit} tokens`);
+    } else if (tokenInfo.total > modelTokenLimit * 0.9) {
+      setTokenWarning(`Approaching model limit (${Math.round(tokenInfo.total / modelTokenLimit * 100)}%)`);
+    } else {
+      setTokenWarning(null);
+    }
+  }, [values, promptText, systemPrompt, modelTokenLimit]);
 
   // Load previously used values from localStorage and apply defaults
   useEffect(() => {
@@ -163,6 +184,26 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
     const param = parameters.find(p => p.name === paramName);
     if (!param) return;
     
+    // For file parameters, check token count
+    if (param.type === 'file' && value) {
+      try {
+        if (value.startsWith('{')) {
+          const fileTokens = estimateFileTokens(value);
+          
+          // Warning for large token counts
+          if (fileTokens > 50000) {
+            setErrors(prev => ({
+              ...prev, 
+              [paramName]: `Warning: This file may use ~${fileTokens.toLocaleString()} tokens`
+            }));
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Error estimating file tokens:', e);
+      }
+    }
+    
     // Validate the value
     const validation = validateParameterValue(param, value);
     if (!validation.valid) {
@@ -201,6 +242,16 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
     if (hasErrors) {
       setErrors(newErrors);
       return;
+    }
+    
+    // Check token limit
+    if (tokenEstimate > modelTokenLimit) {
+      if (!confirm(
+        `WARNING: This prompt may exceed the model's token limit (${tokenEstimate} tokens > ${modelTokenLimit} max).\n\n` +
+        `The API call may fail or be truncated. Continue anyway?`
+      )) {
+        return;
+      }
     }
     
     // Save values to localStorage for future use
@@ -618,6 +669,19 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
             return;
           }
           
+          // Token estimation warning for large image files
+          if (file.type.startsWith('image/') && file.size > 500000) { // >500KB images
+            const estimatedTokens = Math.ceil(file.size * 0.75 / 4);
+            if (estimatedTokens > 50000) {
+              if (!confirm(
+                `Warning: This image may use approximately ${estimatedTokens.toLocaleString()} tokens.\n\n` +
+                `Large images can exceed model token limits. Continue loading this image?`
+              )) {
+                return;
+              }
+            }
+          }
+          
           // Read the file
           const reader = new FileReader();
           
@@ -815,7 +879,20 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
                 </button>
               )}
             </div>
-            <div className="flex space-x-3">
+            <div className="flex space-x-3 items-center">
+              {/* Token usage indicator */}
+              <div className="text-sm mr-2">
+                <span className={`${
+                  tokenWarning ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'
+                }`}>
+                  {tokenEstimate.toLocaleString()} tokens
+                </span>
+                {tokenWarning && (
+                  <div className="flex items-center text-xs text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="w-3 h-3 mr-1" /> {tokenWarning}
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={onCancel}
@@ -825,7 +902,11 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
               </button>
               <button
                 type="submit"
-                className="px-3 py-1.5 bg-blue-600 text-sm text-white rounded hover:bg-blue-700"
+                className={`px-3 py-1.5 text-sm text-white rounded ${
+                  tokenEstimate > modelTokenLimit
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
                 Run &gt;
               </button>

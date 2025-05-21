@@ -961,6 +961,8 @@ Content: ${snippet.text}
       {showParamModal && (
         <ParameterModal
           parameters={activeParameters}
+          promptText={tabs.find(tab => tab.id === activeTab)?.content || ''}
+          systemPrompt={tabs.find(tab => tab.id === activeTab)?.systemPrompt || ''}
           tabId={activeTab}
           tabName={tabs.find(tab => tab.id === activeTab)?.name || 'Prompt'}
           onSubmit={executePromptWithParams}

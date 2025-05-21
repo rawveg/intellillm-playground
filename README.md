@@ -22,7 +22,7 @@
 
 - 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
 - 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration.
-- 📂 **Prompt Management**: Import/export prompts (with metadata), folder organization, drag-and-drop file management, filtering/sorting controls, persistent model settings, and YAML frontmatter support.
+- 📂 **Prompt Management**: Import/export prompts (with metadata), folder organization, drag-and-drop file management, filtering/sorting controls, persistent model settings, YAML frontmatter support, and GitHub Gist integration.
 - 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax, which can be filled in at runtime via an intuitive modal interface.
 - 🧠 **Web Search Augmentation**: 
   - Toggleable real-time web search via DuckDuckGo, with search terms auto-extracted by an LLM meta-prompt.
@@ -93,6 +93,12 @@ The Prompt Library offers comprehensive organization features to help you manage
   - Name (A-Z or Z-A)
   - Creation date (newest or oldest first)
 - **Directories First**: Folders always appear before files in the list for better organization
+
+### GitHub Gist Integration
+
+- **Export to GitHub Gists**: Share prompts as public or private Gists with a single click
+- **Import from GitHub Gists**: Import prompts from public Gists by entering the URL
+- **GitHub Authentication**: Use GitHub Personal Access Tokens for creating Gists
 
 All organizational structures are mirrored in the filesystem, ensuring your prompt organization persists across sessions and deployments.
 
@@ -373,6 +379,8 @@ Some examples of what you can build:
 | `/api/prompts/[name]`    | DELETE | Delete a prompt/folder by name        |
 | `/api/prompts/[name]`    | PATCH  | Move a prompt/folder to new location  |
 | `/api/search`            | POST   | Search DuckDuckGo and return snippets |
+| `/api/gists/import`      | POST   | Import a prompt from a GitHub Gist    |
+| `/api/gists/export`      | POST   | Export a prompt to a GitHub Gist      |
 
 ---
 

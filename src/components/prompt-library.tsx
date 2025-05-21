@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, MoreHorizontal } from 'lucide-react'
+import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, MoreHorizontal, Share2 } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 import { FolderBrowserModal } from './folder-browser-modal'
 import { DeleteConfirmationModal } from './delete-confirmation-modal'
+import { ShareModal } from './share-modal'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -30,6 +31,9 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const [showBulkActions, setShowBulkActions] = useState(false)
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareItemPath, setShareItemPath] = useState<string | null>(null)
+  const [shareItemName, setShareItemName] = useState<string>('')
   const [deleteItemPath, setDeleteItemPath] = useState<string | null>(null)
   const [deleteIsDirectory, setDeleteIsDirectory] = useState(false)
   const [deleteModalTitle, setDeleteModalTitle] = useState('')
@@ -222,6 +226,12 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const cancelDelete = () => {
     setShowDeleteModal(false)
     setDeleteItemPath(null)
+  }
+
+  const shareItem = (itemPath: string, itemName: string) => {
+    setShareItemPath(itemPath)
+    setShareItemName(itemName)
+    setShowShareModal(true)
   }
 
   const handleCreateFolder = async () => {
@@ -433,6 +443,23 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 Move
               </button>
               <button
+                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center"
+                onClick={() => {
+                  // For a single prompt, we can use the share functionality
+                  if (selectedItems.length === 1) {
+                    const item = contents.find(i => i.path === selectedItems[0]);
+                    if (item && !item.isDirectory) {
+                      shareItem(item.path, item.name);
+                    }
+                  }
+                }}
+                title="Share selected prompt"
+                disabled={selectedItems.length !== 1 || contents.find(i => i.path === selectedItems[0])?.isDirectory}
+              >
+                <Share2 className="w-3 h-3 mr-1" />
+                Share
+              </button>
+              <button
                 className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 flex items-center"
                 onClick={deleteSelectedPrompts}
                 title="Delete selected prompts"
@@ -619,13 +646,27 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                     <span>{item.name}</span>
                   </button>
                 </div>
-                <button
-                  className="p-1 hover:text-red-500 dark:hover:text-red-400"
-                  onClick={() => deleteItem(item.path, item.isDirectory)}
-                  title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center">
+                  {!item.isDirectory && (
+                    <button
+                      className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        shareItem(item.path, item.name);
+                      }}
+                      title="Share prompt"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    className="p-1 hover:text-red-500 dark:hover:text-red-400"
+                    onClick={() => deleteItem(item.path, item.isDirectory)}
+                    title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -652,6 +693,18 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           message={deleteModalMessage}
           onConfirm={deleteItemPath === 'MULTIPLE' ? confirmDeleteSelected : confirmDelete}
           onCancel={cancelDelete}
+        />
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && shareItemPath && (
+        <ShareModal
+          promptPath={shareItemPath}
+          promptName={shareItemName}
+          onClose={() => {
+            setShowShareModal(false)
+            setShareItemPath(null)
+          }}
         />
       )}
     </div>

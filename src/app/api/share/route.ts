@@ -14,6 +14,10 @@ export async function POST(request: Request) {
     
     // Load the prompt content
     const prompt = await loadPrompt(decodedPath)
+    
+    // Generate shareable content
+    const markdownContent = generateMarkdownContent(prompt)
+    const plainTextContent = generatePlainTextContent(prompt)
 
     // Create shareable content based on the method
     switch (shareMethod) {
@@ -21,10 +25,10 @@ export async function POST(request: Request) {
         // For GitHub Gist sharing, we create an anonymous gist
         const gistPayload = {
           description: `Shared prompt: ${prompt.name}`,
-          public: false,
+          public: true, // Make it public so others can view it
           files: {
             [`${prompt.name}.prompt.md`]: {
-              content: generateMarkdownContent(prompt)
+              content: markdownContent
             }
           }
         }
@@ -34,7 +38,7 @@ export async function POST(request: Request) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              // Note: Using anonymous gist (no authentication)
+              // Using anonymous gist (no authentication)
             },
             body: JSON.stringify(gistPayload)
           })
@@ -47,12 +51,18 @@ export async function POST(request: Request) {
           return NextResponse.json({ 
             success: true, 
             shareMethod: 'gist',
-            shareUrl: gistData.html_url 
+            shareUrl: gistData.html_url,
+            markdownContent,
+            plainTextContent,
+            promptName: prompt.name
           })
         } catch (gistError) {
           console.error('Error creating gist:', gistError)
           return NextResponse.json({ 
-            error: 'Failed to create GitHub Gist' 
+            error: 'Failed to create GitHub Gist',
+            markdownContent,
+            plainTextContent,
+            promptName: prompt.name
           }, { status: 500 })
         }
 
@@ -61,7 +71,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           success: true, 
           shareMethod,
-          promptContent: generateMarkdownContent(prompt),
+          markdownContent,
+          plainTextContent,
           promptName: prompt.name
         })
     }
@@ -92,6 +103,21 @@ function generateMarkdownContent(prompt: any): string {
   
   // Add source information
   content += '\n---\n*Shared from IntelliLLM Playground*';
+  
+  return content;
+}
+
+// Helper function to generate plain text content for the prompt
+function generatePlainTextContent(prompt: any): string {
+  let content = `Prompt: ${prompt.name}\n\n`;
+  
+  // Add user prompt
+  content += `USER PROMPT:\n${prompt.content}\n\n`;
+  
+  // Add system prompt if present
+  if (prompt.systemPrompt) {
+    content += `SYSTEM PROMPT:\n${prompt.systemPrompt}\n\n`;
+  }
   
   return content;
 }

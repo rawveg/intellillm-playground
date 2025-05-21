@@ -56,6 +56,7 @@ The following parameter field types are fully implemented and available for use 
 - **number**: Numeric input (supports min/max validation)
 - **email**: Email address input (with validation)
 - **url**: URL input (with validation)
+- **file**: File upload input (supports text and image files)
 - **date**: Date picker
 - **time**: Time picker
 - **month**: Month picker (supports formats: full, short, numeric, numeric-dd)
@@ -242,6 +243,28 @@ You can add validation rules to parameters using the syntax `{{ParameterName|fie
 {{Age|number|number:min-18,max-65}}   # Number between 18 and 65
 {{Username|text|regexp:^[a-zA-Z0-9]+$}}  # Text matching a regular expression pattern
 ```
+
+##### File Parameter Syntax
+
+The `file` parameter type allows embedding file contents directly into prompts, supporting both text and image files:
+
+```markdown
+{{Document|file}}                                    # Default: accepts text and image files
+{{Image|file:image/*}}                               # Accept any image file
+{{TextFile|file:.txt,.md,text/plain}}                # Accept specific text file types
+{{LimitedFile|file:.jpg,.png,5MB}}                   # Accept specific file types with size limit
+{{SmallImage|file:image/*,1MB}}                      # Accept images with 1MB size limit
+```
+
+File parameter options:
+- Specify allowed file types using MIME types (e.g., `image/*`, `text/plain`) or file extensions (e.g., `.jpg`, `.txt`)
+- Set maximum file size using `KB` or `MB` suffix (e.g., `1MB`, `500KB`)
+- Multiple options can be combined with commas
+
+When a file parameter is used:
+- Text file contents are embedded as plain text at the parameter location
+- Images are embedded as data URLs, compatible with vision-based models
+- The file selector shows previews for images
 
 Validation types:
 - `string`: Validates text length with `min-X` and `max-X` rules

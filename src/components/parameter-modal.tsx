@@ -549,6 +549,183 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
             />
           </div>
         );
+
+      case 'file':
+        // Define allowed file types as accept attribute string
+        const accept = param.allowedFileTypes && param.allowedFileTypes.length > 0 
+          ? param.allowedFileTypes.join(',')
+          : 'text/*,image/*'; // Default to text and images if not specified
+          
+        // Display file type info to the user
+        const fileTypeInfo = param.allowedFileTypes && param.allowedFileTypes.length > 0
+          ? `Allowed: ${param.allowedFileTypes.join(', ')}`
+          : 'Accepts text and image files';
+          
+        // Display file size limit info if specified
+        const fileSizeInfo = param.maxFileSize
+          ? `Max size: ${
+              param.maxFileSize >= 1048576 
+                ? `${(param.maxFileSize / 1048576).toFixed(1)} MB` 
+                : `${(param.maxFileSize / 1024).toFixed(1)} KB`
+            }`
+          : '';
+          
+        // Create hints text
+        const fileHints = [fileTypeInfo, fileSizeInfo].filter(Boolean).join(' • ');
+        
+        // Handle file selection
+        const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const file = e.target.files?.[0];
+          if (!file) {
+            handleChange(param.name, '');
+            return;
+          }
+          
+          // Check file size if maxFileSize is specified
+          if (param.maxFileSize && file.size > param.maxFileSize) {
+            const maxSize = param.maxFileSize;
+            setErrors(prev => ({
+              ...prev,
+              [param.name]: `File exceeds maximum size of ${
+                maxSize >= 1048576 
+                  ? `${(maxSize / 1048576).toFixed(1)} MB` 
+                  : `${(maxSize / 1024).toFixed(1)} KB`
+              }`
+            }));
+            return;
+          }
+          
+          // Check if file type is allowed
+          const isAllowed = !param.allowedFileTypes || param.allowedFileTypes.length === 0 || 
+            param.allowedFileTypes.some(type => {
+              if (type.startsWith('.')) {
+                // Check file extension
+                return file.name.toLowerCase().endsWith(type.toLowerCase());
+              } else if (type.includes('/')) {
+                // Check MIME type
+                return file.type === type || 
+                  // Handle wildcard MIME types like "image/*"
+                  (type.endsWith('/*') && file.type.startsWith(type.replace('/*', '/')));
+              }
+              return false;
+            });
+            
+          if (!isAllowed) {
+            setErrors(prev => ({
+              ...prev,
+              [param.name]: `File type not allowed. Please use: ${param.allowedFileTypes?.join(', ')}`
+            }));
+            return;
+          }
+          
+          // Read the file
+          const reader = new FileReader();
+          
+          // Handle different types of files
+          if (file.type.startsWith('text/')) {
+            // For text files, read as text
+            reader.onload = (e) => {
+              if (e.target?.result) {
+                const content = e.target.result as string;
+                // Store file info and content
+                handleChange(param.name, JSON.stringify({
+                  name: file.name,
+                  type: file.type,
+                  content
+                }));
+              }
+            };
+            reader.readAsText(file);
+          } else if (file.type.startsWith('image/')) {
+            // For images, read as data URL
+            reader.onload = (e) => {
+              if (e.target?.result) {
+                const content = e.target.result as string;
+                // Store file info and content
+                handleChange(param.name, JSON.stringify({
+                  name: file.name,
+                  type: file.type,
+                  content
+                }));
+              }
+            };
+            reader.readAsDataURL(file);
+          } else {
+            // For other file types, just store file info
+            handleChange(param.name, JSON.stringify({
+              name: file.name,
+              type: file.type,
+              content: null // Don't store content for unsupported file types
+            }));
+          }
+        };
+        
+        // Parse stored value to display file info
+        let fileInfo: { name?: string, type?: string, content?: string } = {};
+        if (value) {
+          try {
+            fileInfo = JSON.parse(value);
+          } catch (e) {
+            // If parsing fails, just reset
+            fileInfo = {};
+          }
+        }
+        
+        // Check if we have an image to display preview
+        const isImage = fileInfo.type?.startsWith('image/');
+        const hasFileSelected = !!fileInfo.name;
+        
+        return (
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+              {fileHints}
+            </div>
+            
+            {/* File input */}
+            <input
+              type="file"
+              onChange={handleFileChange}
+              accept={accept}
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 mb-2"
+              id={`file-input-${param.name}`}
+              style={{ display: 'none' }}
+            />
+            
+            {/* Custom file input button */}
+            <div className="flex flex-col space-y-2">
+              <button
+                type="button"
+                onClick={() => document.getElementById(`file-input-${param.name}`)?.click()}
+                className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 text-left"
+              >
+                {hasFileSelected ? `Selected: ${fileInfo.name}` : 'Choose file...'}
+              </button>
+              
+              {/* Preview for image files */}
+              {isImage && fileInfo.content && (
+                <div className="mt-2 border rounded p-2 bg-gray-50 dark:bg-gray-800">
+                  <p className="text-xs mb-1">Preview:</p>
+                  <img 
+                    src={fileInfo.content} 
+                    alt={fileInfo.name || 'Preview'}
+                    className="max-w-full max-h-32 object-contain"
+                  />
+                </div>
+              )}
+              
+              {/* Clear button when file is selected */}
+              {hasFileSelected && (
+                <button
+                  type="button"
+                  onClick={() => handleChange(param.name, '')}
+                  className="text-xs text-red-600 hover:text-red-800 dark:hover:text-red-400"
+                >
+                  Remove file
+                </button>
+              )}
+            </div>
+          </div>
+        );
         
       default: // text input (default)
         return (

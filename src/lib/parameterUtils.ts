@@ -21,6 +21,9 @@ export interface ParameterInfo {
   };
   // Default value
   defaultValue?: string;
+  // For file type parameters
+  allowedFileTypes?: string[];
+  maxFileSize?: number;
 }
 
 /**
@@ -245,7 +248,7 @@ export function extractParameters(promptText: string): ParameterInfo[] {
     if (typeOrValidation) {
       // If it's a known field type, it's a type
       const knownTypes = ['text', 'multiline', 'number', 'email', 'url', 'checkbox', 
-                          'select', 'multiselect', 'radio', 'date', 'time', 'month', 'year'];
+                          'select', 'multiselect', 'radio', 'date', 'time', 'month', 'year', 'file'];
       
       if (knownTypes.includes(typeOrValidation.trim().toLowerCase()) || 
           typeOrValidation.trim().toLowerCase().startsWith('year-')) {
@@ -257,6 +260,32 @@ export function extractParameters(promptText: string): ParameterInfo[] {
             options = optionsOrRules.split(',').map(opt => opt.trim());
           } else if (['date', 'time', 'month'].includes(type)) {
             format = optionsOrRules.trim();
+          } else if (type === 'file') {
+            // Parse allowed file types and max size
+            const fileOptions = optionsOrRules.split(',').map(opt => opt.trim());
+            const allowedTypes: string[] = [];
+            let maxSize: number | undefined;
+            
+            fileOptions.forEach(option => {
+              // Check if option is a file type specification
+              if (option.startsWith('.') || option.includes('/')) {
+                allowedTypes.push(option);
+              }
+              // Check if option is a max file size specification (in KB)
+              else if (option.toLowerCase().endsWith('kb')) {
+                const sizeInKB = parseInt(option.slice(0, -2), 10);
+                if (!isNaN(sizeInKB)) {
+                  maxSize = sizeInKB * 1024; // Convert KB to bytes
+                }
+              } else if (option.toLowerCase().endsWith('mb')) {
+                const sizeInMB = parseInt(option.slice(0, -2), 10);
+                if (!isNaN(sizeInMB)) {
+                  maxSize = sizeInMB * 1024 * 1024; // Convert MB to bytes
+                }
+              }
+            });
+            
+            options = fileOptions;
           } else if (type === 'year' || type.startsWith('year-')) {
             // Handle year format options
             if (type.startsWith('year-last-')) {
@@ -305,6 +334,38 @@ export function extractParameters(promptText: string): ParameterInfo[] {
     // Add type-specific options
     if (options) paramInfo.options = options;
     if (format) paramInfo.format = format;
+    
+    // Handle file parameter specific attributes
+    if (type === 'file' && options) {
+      const allowedTypes: string[] = [];
+      let maxSize: number | undefined;
+      
+      options.forEach(option => {
+        // Check if option is a file type specification
+        if (option.startsWith('.') || option.includes('/')) {
+          allowedTypes.push(option);
+        }
+        // Check if option is a max file size specification
+        else if (option.toLowerCase().endsWith('kb')) {
+          const sizeInKB = parseInt(option.slice(0, -2), 10);
+          if (!isNaN(sizeInKB)) {
+            maxSize = sizeInKB * 1024; // Convert KB to bytes
+          }
+        } else if (option.toLowerCase().endsWith('mb')) {
+          const sizeInMB = parseInt(option.slice(0, -2), 10);
+          if (!isNaN(sizeInMB)) {
+            maxSize = sizeInMB * 1024 * 1024; // Convert MB to bytes
+          }
+        }
+      });
+      
+      if (allowedTypes.length > 0) {
+        paramInfo.allowedFileTypes = allowedTypes;
+      }
+      if (maxSize !== undefined) {
+        paramInfo.maxFileSize = maxSize;
+      }
+    }
     
     // Handle year ranges
     if (type === 'year') {
@@ -381,6 +442,23 @@ export function replaceParameters(promptText: string, paramValues: Record<string
   Object.entries(paramValues).forEach(([name, value]) => {
     // Match any parameter with this name, regardless of type or options or validation
     const regex = new RegExp(`{{${name}(?:\\|[^{}]+)?(?:\\|[^{}]+)?}}`, 'g');
+    
+    // For file parameters, extract the content from the JSON string
+    if (value && (value.startsWith('{"name":"') || value.startsWith('{"type":"'))) {
+      try {
+        const fileData = JSON.parse(value);
+        if (fileData.content) {
+          // Use the actual file content for replacement
+          result = result.replace(regex, fileData.content);
+          return;
+        }
+      } catch (e) {
+        // If parsing fails, just use the value as is
+        console.warn('Failed to parse file data:', e);
+      }
+    }
+    
+    // For regular parameters, replace with the value directly
     result = result.replace(regex, value);
   });
   

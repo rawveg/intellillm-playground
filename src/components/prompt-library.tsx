@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, MoreHorizontal } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 import { FolderBrowserModal } from './folder-browser-modal'
+import { ConfirmationModal } from './confirmation-modal'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -28,6 +29,11 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [showBulkActions, setShowBulkActions] = useState(false)
   const [showMoveModal, setShowMoveModal] = useState(false)
+  
+  // State for delete confirmation
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
+  const [deleteItemInfo, setDeleteItemInfo] = useState<{path: string, isDirectory: boolean} | null>(null)
+  const [deleteMode, setDeleteMode] = useState<'single' | 'bulk'>('single')
 
   useEffect(() => {
     loadContents(currentPath)
@@ -116,10 +122,13 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const deleteSelectedPrompts = async () => {
-    if (!confirm(`Delete ${selectedItems.length} selected prompt${selectedItems.length > 1 ? 's' : ''}?`)) {
-      return
-    }
-
+    setDeleteMode('bulk')
+    setShowDeleteConfirmation(true)
+  }
+  
+  const handleConfirmBulkDelete = async () => {
+    setShowDeleteConfirmation(false)
+    
     try {
       await Promise.all(
         selectedItems.map(async (itemPath) => {
@@ -181,10 +190,18 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const deleteItem = async (itemPath: string, isDirectory: boolean) => {
-    if (isDirectory && !confirm('Delete this folder and all its contents?')) {
-      return
-    }
-
+    setDeleteMode('single')
+    setDeleteItemInfo({ path: itemPath, isDirectory })
+    setShowDeleteConfirmation(true)
+  }
+  
+  const handleConfirmSingleDelete = async () => {
+    if (!deleteItemInfo) return
+    
+    const { path: itemPath, isDirectory } = deleteItemInfo
+    setShowDeleteConfirmation(false)
+    setDeleteItemInfo(null)
+    
     try {
       const encodedPath = encodeURIComponent(itemPath)
       await fetch(`/api/prompts/${encodedPath}`, { method: 'DELETE' })
@@ -612,6 +629,26 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           }}
           onCancel={() => setShowMoveModal(false)}
           title={`Move ${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''}`}
+        />
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && (
+        <ConfirmationModal
+          title={`Delete ${deleteMode === 'bulk' ? 'Items' : deleteItemInfo?.isDirectory ? 'Folder' : 'Prompt'}`}
+          message={deleteMode === 'bulk'
+            ? `Are you sure you want to delete ${selectedItems.length} selected prompt${selectedItems.length !== 1 ? 's' : ''}?`
+            : deleteItemInfo?.isDirectory
+              ? 'Are you sure you want to delete this folder and all its contents?'
+              : 'Are you sure you want to delete this prompt?'
+          }
+          confirmLabel="Delete"
+          onConfirm={deleteMode === 'bulk' ? handleConfirmBulkDelete : handleConfirmSingleDelete}
+          onCancel={() => {
+            setShowDeleteConfirmation(false)
+            setDeleteItemInfo(null)
+          }}
+          isDestructive={true}
         />
       )}
     </div>

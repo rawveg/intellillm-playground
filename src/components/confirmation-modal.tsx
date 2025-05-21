@@ -20,8 +20,8 @@ export function ConfirmationModal({
   isDestructive = true
 }: ConfirmationModalProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 delete-confirmation-modal">
+      <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b dark:border-gray-800 flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center">
             {isDestructive && (
@@ -31,7 +31,10 @@ export function ConfirmationModal({
           </h2>
           <button 
             className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-            onClick={onCancel}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancel();
+            }}
           >
             <X className="w-5 h-5" />
           </button>
@@ -43,13 +46,19 @@ export function ConfirmationModal({
 
         <div className="p-4 border-t dark:border-gray-800 flex justify-end space-x-3">
           <button
-            onClick={onCancel}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancel();
+            }}
             className="px-4 py-2 border rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700"
           >
             {cancelLabel}
           </button>
           <button
-            onClick={onConfirm}
+            onClick={(e) => {
+              e.stopPropagation();
+              onConfirm();
+            }}
             className={`px-4 py-2 text-white rounded ${
               isDestructive 
                 ? 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800' 

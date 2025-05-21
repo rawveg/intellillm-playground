@@ -193,9 +193,11 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const initiateItemDelete = (itemPath: string, isDirectory: boolean) => {
+    console.log('initiateItemDelete called for', itemPath, isDirectory)
     setDeleteMode('single')
     setDeleteItemInfo({ path: itemPath, isDirectory })
     setShowDeleteConfirmation(true)
+    console.log('Modal state set:', { showDeleteConfirmation: true, deleteMode: 'single', deleteItemInfo: { path: itemPath, isDirectory } })
   }
   
   const deleteItem = async (itemPath: string, isDirectory: boolean) => {
@@ -616,7 +618,12 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 <button
                   className="p-1 hover:text-red-500 dark:hover:text-red-400"
                   onClick={(e) => {
+                    // Stop event propagation to prevent parent events
                     e.stopPropagation();
+                    e.preventDefault();
+                    
+                    // Show the delete confirmation modal
+                    console.log('Delete button clicked for:', item.path);
                     initiateItemDelete(item.path, item.isDirectory);
                   }}
                   title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}

@@ -23,11 +23,13 @@ export function ConfirmationModal({
     <div 
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 delete-confirmation-modal" 
       onClick={(e) => {
+        e.preventDefault();
         e.stopPropagation();
         if (e.target === e.currentTarget) {
           onCancel();
         }
       }}
+      style={{ isolation: 'isolate' }}
     >
       <div 
         className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md flex flex-col overflow-hidden shadow-lg" 

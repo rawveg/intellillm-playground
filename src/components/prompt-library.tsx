@@ -3,6 +3,8 @@ import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, 
 import type { PromptFile } from '@/lib/promptUtils'
 import { FolderBrowserModal } from './folder-browser-modal'
 import { ConfirmationModal } from './confirmation-modal'
+import { useDeleteConfirmation } from '@/lib/hooks/useDeleteConfirmation'
+import { DeleteButton } from './delete-button'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -30,10 +32,17 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const [showBulkActions, setShowBulkActions] = useState(false)
   const [showMoveModal, setShowMoveModal] = useState(false)
   
-  // State for delete confirmation
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
-  const [deleteItemInfo, setDeleteItemInfo] = useState<{path: string, isDirectory: boolean} | null>(null)
-  const [deleteMode, setDeleteMode] = useState<'single' | 'bulk'>('single')
+  // Use custom hook for delete confirmation
+  const { 
+    showDeleteConfirmation, 
+    deleteItemInfo, 
+    deleteMode,
+    initiateItemDelete,
+    initiateBulkDelete,
+    cancelDelete,
+    confirmSingleDelete,
+    confirmBulkDelete
+  } = useDeleteConfirmation()
 
   useEffect(() => {
     loadContents(currentPath)
@@ -122,8 +131,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const initiateSelectedPromptsDelete = () => {
-    setDeleteMode('bulk')
-    setShowDeleteConfirmation(true)
+    initiateBulkDelete();
   }
   
   const deleteSelectedPrompts = async () => {
@@ -144,8 +152,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
   
   const handleConfirmBulkDelete = async () => {
-    setShowDeleteConfirmation(false)
-    await deleteSelectedPrompts()
+    await confirmBulkDelete(deleteSelectedPrompts);
   }
 
   const loadContents = async (dirPath: string) => {
@@ -192,23 +199,6 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     }
   }
 
-  const initiateItemDelete = (itemPath: string, isDirectory: boolean) => {
-    console.log('initiateItemDelete called for', itemPath, isDirectory);
-    
-    // Use setTimeout to ensure this happens after all event handling is complete
-    setTimeout(() => {
-      console.log('Setting delete modal state with setTimeout');
-      setDeleteMode('single');
-      setDeleteItemInfo({ path: itemPath, isDirectory });
-      setShowDeleteConfirmation(true);
-      console.log('Modal state set:', { 
-        showDeleteConfirmation: true, 
-        deleteMode: 'single', 
-        deleteItemInfo: { path: itemPath, isDirectory } 
-      });
-    }, 0);
-  }
-  
   const deleteItem = async (itemPath: string, isDirectory: boolean) => {
     try {
       console.log(`Deleting item: ${itemPath}, isDirectory: ${isDirectory}`)
@@ -221,14 +211,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
   
   const handleConfirmSingleDelete = async () => {
-    if (!deleteItemInfo) return
-    
-    const { path: itemPath, isDirectory } = deleteItemInfo
-    console.log(`Confirmation received for deletion: ${itemPath}, isDirectory: ${isDirectory}`)
-    setShowDeleteConfirmation(false)
-    setDeleteItemInfo(null)
-    
-    await deleteItem(itemPath, isDirectory)
+    await confirmSingleDelete(deleteItem);
   }
 
   const handleCreateFolder = async () => {
@@ -647,50 +630,11 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                     <span>{item.name}</span>
                   </button>
                 </div>
-                {/* Isolated delete button container */}
-                <div 
-                  className="delete-button-container relative z-20 inline-block" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation();
-                    return false;
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation();
-                    return false;
-                  }}
-                  style={{ position: 'relative' }}
-                >
-                  <button
-                    className="p-1 hover:text-red-500 dark:hover:text-red-400"
-                    data-testid="delete-button"
-                    onClick={(e) => {
-                      // First prevent all event propagation
-                      e.stopPropagation();
-                      e.preventDefault();
-                      if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation();
-                      
-                      // Clear any drag state to prevent conflicts
-                      setDraggedItem(null);
-                      setDropTargetPath(null);
-                      
-                      // Show the delete confirmation modal
-                      console.log('Delete button clicked for:', item.path);
-                      
-                      // Call the initiateItemDelete function instead of setting state directly
-                      initiateItemDelete(item.path, item.isDirectory);
-                      
-                      // Important: return false to prevent any other handlers from firing
-                      return false;
-                    }}
-                    title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                {/* Use the isolated DeleteButton component */}
+                <DeleteButton 
+                  onDelete={() => initiateItemDelete(item.path, item.isDirectory)}
+                  isDirectory={item.isDirectory}
+                />
               </div>
             ))}
           </div>
@@ -722,10 +666,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           }
           confirmLabel="Delete"
           onConfirm={deleteMode === 'bulk' ? handleConfirmBulkDelete : handleConfirmSingleDelete}
-          onCancel={() => {
-            setShowDeleteConfirmation(false)
-            setDeleteItemInfo(null)
-          }}
+          onCancel={cancelDelete}
           isDestructive={true}
         />
       )}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, MoreHorizontal } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 import { FolderBrowserModal } from './folder-browser-modal'
+import { DeleteConfirmationModal } from './delete-confirmation-modal'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -28,6 +29,11 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [showBulkActions, setShowBulkActions] = useState(false)
   const [showMoveModal, setShowMoveModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteItemPath, setDeleteItemPath] = useState<string | null>(null)
+  const [deleteIsDirectory, setDeleteIsDirectory] = useState(false)
+  const [deleteModalTitle, setDeleteModalTitle] = useState('')
+  const [deleteModalMessage, setDeleteModalMessage] = useState('')
 
   useEffect(() => {
     loadContents(currentPath)
@@ -116,10 +122,13 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const deleteSelectedPrompts = async () => {
-    if (!confirm(`Delete ${selectedItems.length} selected prompt${selectedItems.length > 1 ? 's' : ''}?`)) {
-      return
-    }
-
+    setDeleteItemPath('MULTIPLE')
+    setDeleteModalTitle('Delete Selected Prompts')
+    setDeleteModalMessage(`Delete ${selectedItems.length} selected prompt${selectedItems.length > 1 ? 's' : ''}?`)
+    setShowDeleteModal(true)
+  }
+  
+  const confirmDeleteSelected = async () => {
     try {
       await Promise.all(
         selectedItems.map(async (itemPath) => {
@@ -133,6 +142,10 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
       clearSelection()
     } catch (err) {
       setError('Failed to delete selected prompts')
+    } finally {
+      // Reset delete state
+      setShowDeleteModal(false)
+      setDeleteItemPath(null)
     }
   }
 
@@ -181,21 +194,34 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const deleteItem = async (itemPath: string, isDirectory: boolean) => {
-    const confirmMessage = isDirectory 
+    setDeleteItemPath(itemPath)
+    setDeleteIsDirectory(isDirectory)
+    setDeleteModalTitle(isDirectory ? 'Delete Folder' : 'Delete Prompt')
+    setDeleteModalMessage(isDirectory 
       ? 'Delete this folder and all its contents?' 
-      : 'Delete this prompt?'
-      
-    if (!confirm(confirmMessage)) {
-      return
-    }
+      : 'Delete this prompt?')
+    setShowDeleteModal(true)
+  }
 
+  const confirmDelete = async () => {
+    if (!deleteItemPath) return
+    
     try {
-      const encodedPath = encodeURIComponent(itemPath)
+      const encodedPath = encodeURIComponent(deleteItemPath)
       await fetch(`/api/prompts/${encodedPath}`, { method: 'DELETE' })
       loadContents(currentPath) // Refresh the list
     } catch (err) {
-      setError(`Failed to delete ${isDirectory ? 'folder' : 'prompt'}`)
+      setError(`Failed to delete ${deleteIsDirectory ? 'folder' : 'prompt'}`)
+    } finally {
+      // Reset delete state
+      setShowDeleteModal(false)
+      setDeleteItemPath(null)
     }
+  }
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false)
+    setDeleteItemPath(null)
   }
 
   const handleCreateFolder = async () => {
@@ -616,6 +642,16 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           }}
           onCancel={() => setShowMoveModal(false)}
           title={`Move ${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''}`}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <DeleteConfirmationModal
+          title={deleteModalTitle}
+          message={deleteModalMessage}
+          onConfirm={deleteItemPath === 'MULTIPLE' ? confirmDeleteSelected : confirmDelete}
+          onCancel={cancelDelete}
         />
       )}
     </div>

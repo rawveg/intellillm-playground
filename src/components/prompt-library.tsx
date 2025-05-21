@@ -121,14 +121,12 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     }
   }
 
-  const deleteSelectedPrompts = async () => {
+  const initiateSelectedPromptsDelete = () => {
     setDeleteMode('bulk')
     setShowDeleteConfirmation(true)
   }
   
-  const handleConfirmBulkDelete = async () => {
-    setShowDeleteConfirmation(false)
-    
+  const deleteSelectedPrompts = async () => {
     try {
       await Promise.all(
         selectedItems.map(async (itemPath) => {
@@ -143,6 +141,11 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     } catch (err) {
       setError('Failed to delete selected prompts')
     }
+  }
+  
+  const handleConfirmBulkDelete = async () => {
+    setShowDeleteConfirmation(false)
+    await deleteSelectedPrompts()
   }
 
   const loadContents = async (dirPath: string) => {
@@ -189,10 +192,20 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     }
   }
 
-  const deleteItem = async (itemPath: string, isDirectory: boolean) => {
+  const initiateItemDelete = (itemPath: string, isDirectory: boolean) => {
     setDeleteMode('single')
     setDeleteItemInfo({ path: itemPath, isDirectory })
     setShowDeleteConfirmation(true)
+  }
+  
+  const deleteItem = async (itemPath: string, isDirectory: boolean) => {
+    try {
+      const encodedPath = encodeURIComponent(itemPath)
+      await fetch(`/api/prompts/${encodedPath}`, { method: 'DELETE' })
+      loadContents(currentPath) // Refresh the list
+    } catch (err) {
+      setError(`Failed to delete ${isDirectory ? 'folder' : 'prompt'}`)
+    }
   }
   
   const handleConfirmSingleDelete = async () => {
@@ -202,13 +215,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     setShowDeleteConfirmation(false)
     setDeleteItemInfo(null)
     
-    try {
-      const encodedPath = encodeURIComponent(itemPath)
-      await fetch(`/api/prompts/${encodedPath}`, { method: 'DELETE' })
-      loadContents(currentPath) // Refresh the list
-    } catch (err) {
-      setError(`Failed to delete ${isDirectory ? 'folder' : 'prompt'}`)
-    }
+    await deleteItem(itemPath, isDirectory)
   }
 
   const handleCreateFolder = async () => {
@@ -421,7 +428,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
               </button>
               <button
                 className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 flex items-center"
-                onClick={deleteSelectedPrompts}
+                onClick={initiateSelectedPromptsDelete}
                 title="Delete selected prompts"
               >
                 <Trash2 className="w-3 h-3 mr-1" />
@@ -608,7 +615,10 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 </div>
                 <button
                   className="p-1 hover:text-red-500 dark:hover:text-red-400"
-                  onClick={() => deleteItem(item.path, item.isDirectory)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    initiateItemDelete(item.path, item.isDirectory);
+                  }}
                   title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
                 >
                   <Trash2 className="w-4 h-4" />

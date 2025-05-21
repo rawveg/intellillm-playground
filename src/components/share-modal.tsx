@@ -263,12 +263,35 @@ export function ShareModal({ promptPath, promptName, onClose }: ShareModalProps)
               </>
             ) : (
               <div className="text-center py-4">
-                <button
-                  onClick={shareToGist}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Create GitHub Gist
-                </button>
+                {error && error.includes('Unauthorized') ? (
+                  <div className="mb-4">
+                    <p className="text-sm text-amber-600 dark:text-amber-400 mb-2">
+                      GitHub requires authentication to create gists. You can:
+                    </p>
+                    <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 mb-4">
+                      <li>Use the Email option to share your prompt</li>
+                      <li>Use the Social option to share prompt text directly</li>
+                      <li>Copy the prompt content manually from below</li>
+                    </ul>
+                    {promptContent && (
+                      <div className="border p-3 rounded-md dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-auto max-h-32 text-left">
+                        <pre className="text-xs whitespace-pre-wrap">{promptContent.plainTextContent}</pre>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm mb-2">
+                      Create an anonymous GitHub Gist with your prompt content
+                    </p>
+                    <button
+                      onClick={shareToGist}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      Create GitHub Gist
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

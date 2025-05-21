@@ -46,7 +46,9 @@ export async function POST(request: Request) {
           })
 
           if (!gistResponse.ok) {
-            throw new Error(`Failed to create gist: ${gistResponse.statusText}`)
+            const responseData = await gistResponse.json().catch(() => ({}));
+            const errorMessage = responseData.message || gistResponse.statusText;
+            throw new Error(`Failed to create gist: ${errorMessage}`)
           }
 
           const gistData = await gistResponse.json()

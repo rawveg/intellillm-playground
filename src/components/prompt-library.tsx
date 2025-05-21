@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, MoreHorizontal } from 'lucide-react'
+import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, Github, Import } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 import { FolderBrowserModal } from './folder-browser-modal'
 import { DeleteConfirmationModal } from './delete-confirmation-modal'
+import { ImportGistModal } from './import-gist-modal'
+import { ExportGistModal } from './export-gist-modal'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -34,6 +36,12 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const [deleteIsDirectory, setDeleteIsDirectory] = useState(false)
   const [deleteModalTitle, setDeleteModalTitle] = useState('')
   const [deleteModalMessage, setDeleteModalMessage] = useState('')
+  
+  // GitHub Gist integration
+  const [showImportGistModal, setShowImportGistModal] = useState(false)
+  const [showExportGistModal, setShowExportGistModal] = useState(false)
+  const [exportPromptPath, setExportPromptPath] = useState('')
+  const [exportPromptName, setExportPromptName] = useState('')
 
   useEffect(() => {
     loadContents(currentPath)
@@ -224,6 +232,62 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     setDeleteItemPath(null)
   }
 
+  const handleImportGist = async (gistUrl: string) => {
+    try {
+      const response = await fetch('/api/gists/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gistUrl })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to import Gist')
+      }
+      
+      const data = await response.json()
+      
+      // Refresh the contents
+      await loadContents(currentPath)
+      
+      setShowImportGistModal(false)
+      return data
+    } catch (error) {
+      console.error('Failed to import Gist:', error)
+      throw error
+    }
+  }
+
+  const handleExportGist = async (promptPath: string, isPublic: boolean, token: string) => {
+    try {
+      const response = await fetch('/api/gists/export', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-GitHub-Token': token
+        },
+        body: JSON.stringify({ promptPath, isPublic })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to export to Gist')
+      }
+      
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Failed to export to Gist:', error)
+      throw error
+    }
+  }
+
+  const openExportGistModal = (promptPath: string, promptName: string) => {
+    setExportPromptPath(promptPath)
+    setExportPromptName(promptName)
+    setShowExportGistModal(true)
+  }
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return
 
@@ -378,6 +442,14 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold">Prompt Library</h2>
           <div className="flex space-x-2">
+            <button
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
+              onClick={() => setShowImportGistModal(true)}
+              title="Import from GitHub Gist"
+            >
+              <Github className="w-4 h-4 mr-1" />
+              <span className="text-xs">Import</span>
+            </button>
             <button
               className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
               onClick={navigateHome}
@@ -619,13 +691,24 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                     <span>{item.name}</span>
                   </button>
                 </div>
-                <button
-                  className="p-1 hover:text-red-500 dark:hover:text-red-400"
-                  onClick={() => deleteItem(item.path, item.isDirectory)}
-                  title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center">
+                  {!item.isDirectory && (
+                    <button
+                      className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
+                      onClick={() => openExportGistModal(item.path, item.name)}
+                      title="Export to GitHub Gist"
+                    >
+                      <Github className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    className="p-1 hover:text-red-500 dark:hover:text-red-400"
+                    onClick={() => deleteItem(item.path, item.isDirectory)}
+                    title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -652,6 +735,24 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           message={deleteModalMessage}
           onConfirm={deleteItemPath === 'MULTIPLE' ? confirmDeleteSelected : confirmDelete}
           onCancel={cancelDelete}
+        />
+      )}
+
+      {/* Import Gist Modal */}
+      {showImportGistModal && (
+        <ImportGistModal
+          onImport={handleImportGist}
+          onCancel={() => setShowImportGistModal(false)}
+        />
+      )}
+
+      {/* Export Gist Modal */}
+      {showExportGistModal && (
+        <ExportGistModal
+          promptName={exportPromptName}
+          promptPath={exportPromptPath}
+          onExport={handleExportGist}
+          onCancel={() => setShowExportGistModal(false)}
         />
       )}
     </div>

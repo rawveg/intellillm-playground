@@ -194,19 +194,24 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
 
   const initiateItemDelete = (itemPath: string, isDirectory: boolean) => {
     console.log('initiateItemDelete called for', itemPath, isDirectory);
-    // Set state directly without setTimeout
-    setDeleteMode('single');
-    setDeleteItemInfo({ path: itemPath, isDirectory });
-    setShowDeleteConfirmation(true);
-    console.log('Modal state set:', { 
-      showDeleteConfirmation: true, 
-      deleteMode: 'single', 
-      deleteItemInfo: { path: itemPath, isDirectory } 
-    });
+    
+    // Use setTimeout to ensure this happens after all event handling is complete
+    setTimeout(() => {
+      console.log('Setting delete modal state with setTimeout');
+      setDeleteMode('single');
+      setDeleteItemInfo({ path: itemPath, isDirectory });
+      setShowDeleteConfirmation(true);
+      console.log('Modal state set:', { 
+        showDeleteConfirmation: true, 
+        deleteMode: 'single', 
+        deleteItemInfo: { path: itemPath, isDirectory } 
+      });
+    }, 0);
   }
   
   const deleteItem = async (itemPath: string, isDirectory: boolean) => {
     try {
+      console.log(`Deleting item: ${itemPath}, isDirectory: ${isDirectory}`)
       const encodedPath = encodeURIComponent(itemPath)
       await fetch(`/api/prompts/${encodedPath}`, { method: 'DELETE' })
       loadContents(currentPath) // Refresh the list
@@ -219,6 +224,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     if (!deleteItemInfo) return
     
     const { path: itemPath, isDirectory } = deleteItemInfo
+    console.log(`Confirmation received for deletion: ${itemPath}, isDirectory: ${isDirectory}`)
     setShowDeleteConfirmation(false)
     setDeleteItemInfo(null)
     
@@ -641,26 +647,31 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                     <span>{item.name}</span>
                   </button>
                 </div>
-                {/* Completely isolated delete button container */}
+                {/* Isolated delete button container */}
                 <div 
-                  className="delete-button-container relative z-10 inline-block" 
+                  className="delete-button-container relative z-20 inline-block" 
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation();
+                    return false;
                   }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation();
+                    return false;
                   }}
+                  style={{ position: 'relative' }}
                 >
                   <button
                     className="p-1 hover:text-red-500 dark:hover:text-red-400"
                     data-testid="delete-button"
                     onClick={(e) => {
-                      // Prevent all forms of event propagation
+                      // First prevent all event propagation
                       e.stopPropagation();
                       e.preventDefault();
-                      e.nativeEvent.stopImmediatePropagation();
+                      if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation();
                       
                       // Clear any drag state to prevent conflicts
                       setDraggedItem(null);
@@ -669,16 +680,11 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                       // Show the delete confirmation modal
                       console.log('Delete button clicked for:', item.path);
                       
-                      // Set modal state directly without setTimeout
-                      setDeleteMode('single');
-                      setDeleteItemInfo({ path: item.path, isDirectory: item.isDirectory });
-                      setShowDeleteConfirmation(true);
+                      // Call the initiateItemDelete function instead of setting state directly
+                      initiateItemDelete(item.path, item.isDirectory);
                       
-                      console.log('Modal state set:', { 
-                        showDeleteConfirmation: true, 
-                        deleteMode: 'single', 
-                        deleteItemInfo: { path: item.path, isDirectory: item.isDirectory } 
-                      });
+                      // Important: return false to prevent any other handlers from firing
+                      return false;
                     }}
                     title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
                   >

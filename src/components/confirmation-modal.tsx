@@ -20,8 +20,19 @@ export function ConfirmationModal({
   isDestructive = true
 }: ConfirmationModalProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 delete-confirmation-modal" onClick={(e) => e.stopPropagation()}>
-      <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 delete-confirmation-modal" 
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.target === e.currentTarget) {
+          onCancel();
+        }
+      }}
+    >
+      <div 
+        className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md flex flex-col overflow-hidden shadow-lg" 
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-4 border-b dark:border-gray-800 flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center">
             {isDestructive && (

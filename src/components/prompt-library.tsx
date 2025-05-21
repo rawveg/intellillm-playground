@@ -194,10 +194,13 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
 
   const initiateItemDelete = (itemPath: string, isDirectory: boolean) => {
     console.log('initiateItemDelete called for', itemPath, isDirectory)
-    setDeleteMode('single')
-    setDeleteItemInfo({ path: itemPath, isDirectory })
-    setShowDeleteConfirmation(true)
-    console.log('Modal state set:', { showDeleteConfirmation: true, deleteMode: 'single', deleteItemInfo: { path: itemPath, isDirectory } })
+    // Use setTimeout to ensure this runs after any conflicting events
+    setTimeout(() => {
+      setDeleteMode('single')
+      setDeleteItemInfo({ path: itemPath, isDirectory })
+      setShowDeleteConfirmation(true)
+      console.log('Modal state set:', { showDeleteConfirmation: true, deleteMode: 'single', deleteItemInfo: { path: itemPath, isDirectory } })
+    }, 10)
   }
   
   const deleteItem = async (itemPath: string, isDirectory: boolean) => {
@@ -615,21 +618,35 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                     <span>{item.name}</span>
                   </button>
                 </div>
-                <button
-                  className="p-1 hover:text-red-500 dark:hover:text-red-400"
-                  onClick={(e) => {
-                    // Stop event propagation to prevent parent events
+                <div onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    
-                    // Show the delete confirmation modal
-                    console.log('Delete button clicked for:', item.path);
-                    initiateItemDelete(item.path, item.isDirectory);
-                  }}
-                  title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                  }}>
+                  <button
+                    className="p-1 hover:text-red-500 dark:hover:text-red-400"
+                    onMouseDown={(e) => {
+                      // Stop event propagation to prevent parent events
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
+                    onClick={(e) => {
+                      // Stop event propagation to prevent parent events
+                      e.stopPropagation();
+                      e.preventDefault();
+                      
+                      // Clear any drag state to prevent conflicts
+                      setDraggedItem(null);
+                      setDropTargetPath(null);
+                      
+                      // Show the delete confirmation modal
+                      console.log('Delete button clicked for:', item.path);
+                      initiateItemDelete(item.path, item.isDirectory);
+                    }}
+                    title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

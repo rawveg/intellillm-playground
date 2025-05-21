@@ -181,7 +181,11 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const deleteItem = async (itemPath: string, isDirectory: boolean) => {
-    if (isDirectory && !confirm('Delete this folder and all its contents?')) {
+    const confirmMessage = isDirectory 
+      ? 'Delete this folder and all its contents?' 
+      : 'Delete this prompt?'
+      
+    if (!confirm(confirmMessage)) {
       return
     }
 

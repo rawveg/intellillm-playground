@@ -193,14 +193,16 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   }
 
   const initiateItemDelete = (itemPath: string, isDirectory: boolean) => {
-    console.log('initiateItemDelete called for', itemPath, isDirectory)
-    // Use setTimeout to ensure this runs after any conflicting events
-    setTimeout(() => {
-      setDeleteMode('single')
-      setDeleteItemInfo({ path: itemPath, isDirectory })
-      setShowDeleteConfirmation(true)
-      console.log('Modal state set:', { showDeleteConfirmation: true, deleteMode: 'single', deleteItemInfo: { path: itemPath, isDirectory } })
-    }, 10)
+    console.log('initiateItemDelete called for', itemPath, isDirectory);
+    // Set state directly without setTimeout
+    setDeleteMode('single');
+    setDeleteItemInfo({ path: itemPath, isDirectory });
+    setShowDeleteConfirmation(true);
+    console.log('Modal state set:', { 
+      showDeleteConfirmation: true, 
+      deleteMode: 'single', 
+      deleteItemInfo: { path: itemPath, isDirectory } 
+    });
   }
   
   const deleteItem = async (itemPath: string, isDirectory: boolean) => {
@@ -267,6 +269,13 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   
   // Drag and drop handlers
   const handleDragStart = (item: FileEntry) => (e: React.DragEvent) => {
+    // Don't allow dragging if clicked on delete button
+    if (e.target && (e.target as HTMLElement).closest?.('.delete-button-container')) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+    
     setDraggedItem(item)
     // Set the drag data for compatibility
     e.dataTransfer.setData('text/plain', item.path)
@@ -587,6 +596,14 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 onDragStart={handleDragStart(item)}
                 onDragOver={item.isDirectory ? handleDragOver(item.path) : undefined}
                 onDrop={item.isDirectory ? handleDrop(item.path) : undefined}
+                onClick={(e) => {
+                  // Don't handle click if it's on the delete button
+                  if (e.target && (e.target as HTMLElement).closest?.('.delete-button-container')) {
+                    e.stopPropagation();
+                    return;
+                  }
+                  // Otherwise continue with default behavior
+                }}
               >
                 <div className="flex items-center flex-1">
                   {!item.isDirectory && (
@@ -608,7 +625,13 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                   )}
                   <button
                     className="flex items-center flex-1 text-left hover:text-blue-600 dark:hover:text-blue-400"
-                    onClick={() => item.isDirectory ? navigateToFolder(item.path) : loadPrompt(item.path)}
+                    onClick={(e) => {
+                      // Don't navigate if clicking on or near the delete button
+                      if (e.target && (e.target as HTMLElement).closest?.('.delete-button-container')) {
+                        return;
+                      }
+                      item.isDirectory ? navigateToFolder(item.path) : loadPrompt(item.path)
+                    }}
                   >
                     {item.isDirectory ? (
                       <Folder className="w-5 h-5 mr-2 text-yellow-500" />
@@ -618,21 +641,26 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                     <span>{item.name}</span>
                   </button>
                 </div>
-                <div onClick={(e) => {
+                {/* Completely isolated delete button container */}
+                <div 
+                  className="delete-button-container relative z-10 inline-block" 
+                  onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                  }}>
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
+                >
                   <button
                     className="p-1 hover:text-red-500 dark:hover:text-red-400"
-                    onMouseDown={(e) => {
-                      // Stop event propagation to prevent parent events
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
+                    data-testid="delete-button"
                     onClick={(e) => {
-                      // Stop event propagation to prevent parent events
+                      // Prevent all forms of event propagation
                       e.stopPropagation();
                       e.preventDefault();
+                      e.nativeEvent.stopImmediatePropagation();
                       
                       // Clear any drag state to prevent conflicts
                       setDraggedItem(null);
@@ -640,7 +668,17 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                       
                       // Show the delete confirmation modal
                       console.log('Delete button clicked for:', item.path);
-                      initiateItemDelete(item.path, item.isDirectory);
+                      
+                      // Set modal state directly without setTimeout
+                      setDeleteMode('single');
+                      setDeleteItemInfo({ path: item.path, isDirectory: item.isDirectory });
+                      setShowDeleteConfirmation(true);
+                      
+                      console.log('Modal state set:', { 
+                        showDeleteConfirmation: true, 
+                        deleteMode: 'single', 
+                        deleteItemInfo: { path: item.path, isDirectory: item.isDirectory } 
+                      });
                     }}
                     title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
                   >

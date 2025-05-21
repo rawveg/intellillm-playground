@@ -259,7 +259,10 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   // Drag and drop handlers
   const handleDragStart = (item: FileEntry) => (e: React.DragEvent) => {
     // Don't allow dragging if clicked on delete button
-    if (e.target && (e.target as HTMLElement).closest?.('.delete-button-container')) {
+    if (e.target && (
+        (e.target as HTMLElement).closest?.('.delete-button-container') || 
+        (e.target as HTMLElement).closest?.('.delete-button')
+      )) {
       e.preventDefault();
       e.stopPropagation();
       return false;
@@ -586,8 +589,11 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 onDragOver={item.isDirectory ? handleDragOver(item.path) : undefined}
                 onDrop={item.isDirectory ? handleDrop(item.path) : undefined}
                 onClick={(e) => {
-                  // Don't handle click if it's on the delete button
-                  if (e.target && (e.target as HTMLElement).closest?.('.delete-button-container')) {
+                  // Don't handle click if it's on the delete button or its container
+                  if (e.target && 
+                     ((e.target as HTMLElement).closest?.('.delete-button-container') || 
+                      (e.target as HTMLElement).closest?.('.delete-button'))) {
+                    e.preventDefault();
                     e.stopPropagation();
                     return;
                   }
@@ -616,7 +622,12 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                     className="flex items-center flex-1 text-left hover:text-blue-600 dark:hover:text-blue-400"
                     onClick={(e) => {
                       // Don't navigate if clicking on or near the delete button
-                      if (e.target && (e.target as HTMLElement).closest?.('.delete-button-container')) {
+                      if (e.target && (
+                          (e.target as HTMLElement).closest?.('.delete-button-container') || 
+                          (e.target as HTMLElement).closest?.('.delete-button')
+                        )) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         return;
                       }
                       item.isDirectory ? navigateToFolder(item.path) : loadPrompt(item.path)

@@ -26,17 +26,24 @@ export function useDeleteConfirmation(): UseDeleteConfirmationResult {
 
   // Handler to initiate item deletion process (shows confirmation)
   const initiateItemDelete = useCallback((itemPath: string, isDirectory: boolean) => {
-    console.log('Initiating item delete:', itemPath);
+    console.log(`Initiating item delete for ${isDirectory ? 'folder' : 'prompt'}: ${itemPath}`);
     
     // First reset any existing state
     setDeleteMode('single');
     setDeleteItemInfo({ path: itemPath, isDirectory });
     
-    // Force this to run after current event loop
-    window.setTimeout(() => {
-      console.log('Setting showDeleteConfirmation to true');
+    // Crucially important - ensure this runs after all other event handling
+    const timeoutId = window.setTimeout(() => {
+      console.log(`Setting showDeleteConfirmation to true for ${isDirectory ? 'folder' : 'prompt'}`);
       setShowDeleteConfirmation(true);
-    }, 50); // Use a slight delay to ensure it happens after all event handling
+      
+      // Verify state was updated correctly
+      window.setTimeout(() => {
+        console.log(`Delete confirmation modal should be visible now for ${isDirectory ? 'folder' : 'prompt'}`);
+      }, 10);
+    }, 100); // Increased delay to ensure it happens after all event handling
+    
+    return () => clearTimeout(timeoutId);
   }, []);
 
   // Handler to initiate bulk deletion process (shows confirmation)
@@ -47,10 +54,12 @@ export function useDeleteConfirmation(): UseDeleteConfirmationResult {
     setDeleteMode('bulk');
     
     // Force this to run after current event loop
-    window.setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       console.log('Setting showDeleteConfirmation to true for bulk delete');
       setShowDeleteConfirmation(true);
-    }, 50); // Use a slight delay to ensure it happens after all event handling
+    }, 100); // Increased delay to ensure it happens after all event handling
+    
+    return () => clearTimeout(timeoutId);
   }, []);
 
   // Handler to cancel deletion
@@ -65,7 +74,7 @@ export function useDeleteConfirmation(): UseDeleteConfirmationResult {
     if (!deleteItemInfo) return;
     
     const { path: itemPath, isDirectory } = deleteItemInfo;
-    console.log(`Confirming deletion of: ${itemPath}`);
+    console.log(`Confirming deletion of ${isDirectory ? 'folder' : 'prompt'}: ${itemPath}`);
     
     setShowDeleteConfirmation(false);
     setDeleteItemInfo(null);

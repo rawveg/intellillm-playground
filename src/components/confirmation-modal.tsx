@@ -1,4 +1,5 @@
 import { AlertTriangle, X } from 'lucide-react'
+import React, { useEffect } from 'react'
 
 interface ConfirmationModalProps {
   title: string
@@ -19,9 +20,14 @@ export function ConfirmationModal({
   onCancel,
   isDestructive = true
 }: ConfirmationModalProps) {
+  // Log when modal renders
+  useEffect(() => {
+    console.log(`Confirmation modal rendered: ${title}`);
+  }, [title]);
+
   return (
     <div 
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 delete-confirmation-modal" 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] delete-confirmation-modal" 
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -33,7 +39,10 @@ export function ConfirmationModal({
     >
       <div 
         className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md flex flex-col overflow-hidden shadow-lg" 
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
       >
         <div className="p-4 border-b dark:border-gray-800 flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center">
@@ -45,6 +54,7 @@ export function ConfirmationModal({
           <button 
             className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               onCancel();
             }}
@@ -60,6 +70,7 @@ export function ConfirmationModal({
         <div className="p-4 border-t dark:border-gray-800 flex justify-end space-x-3">
           <button
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               onCancel();
             }}
@@ -69,6 +80,7 @@ export function ConfirmationModal({
           </button>
           <button
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               onConfirm();
             }}

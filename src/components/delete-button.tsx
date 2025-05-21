@@ -19,6 +19,9 @@ export function DeleteButton({ onDelete, isDirectory = false }: DeleteButtonProp
       e.nativeEvent.stopPropagation();
     }
     
+    // Debugging
+    console.log(`Delete button clicked for ${isDirectory ? 'folder' : 'prompt'}`);
+    
     // Call the onDelete callback
     onDelete();
     
@@ -28,7 +31,7 @@ export function DeleteButton({ onDelete, isDirectory = false }: DeleteButtonProp
   
   return (
     <div 
-      className="delete-button-wrapper relative z-30" 
+      className="delete-button-container delete-button-wrapper relative z-30" 
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -43,9 +46,13 @@ export function DeleteButton({ onDelete, isDirectory = false }: DeleteButtonProp
     >
       <button
         type="button"
-        className="p-1 hover:text-red-500 dark:hover:text-red-400"
+        className="p-1 hover:text-red-500 dark:hover:text-red-400 delete-button"
         data-testid="delete-button"
         onClick={handleDeleteClick}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         title={`Delete ${isDirectory ? 'folder' : 'prompt'}`}
       >
         <Trash2 className="w-4 h-4" />

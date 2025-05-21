@@ -22,25 +22,27 @@ export async function POST(request: Request) {
     // Create shareable content based on the method
     switch (shareMethod) {
       case 'gist':
-        // For GitHub Gist sharing, we create an anonymous gist
-        const gistPayload = {
-          description: `Shared prompt: ${prompt.name}`,
-          public: true, // Make it public so others can view it
-          files: {
-            [`${prompt.name}.prompt.md`]: {
-              content: markdownContent
+        try {
+          // For GitHub Gist sharing, we create an anonymous gist
+          const gistPayload = {
+            description: `Shared prompt: ${prompt.name}`,
+            public: true, // Make it public so others can view it
+            files: {
+              [`${prompt.name}.prompt.md`]: {
+                content: markdownContent
+              }
             }
           }
-        }
 
-        try {
           const gistResponse = await fetch('https://api.github.com/gists', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               // Using anonymous gist (no authentication)
             },
-            body: JSON.stringify(gistPayload)
+            body: JSON.stringify(gistPayload),
+            // Add a short timeout since this is likely to fail in local environments
+            signal: AbortSignal.timeout(5000)
           })
 
           if (!gistResponse.ok) {
@@ -56,10 +58,12 @@ export async function POST(request: Request) {
             plainTextContent,
             promptName: prompt.name
           })
-        } catch (gistError) {
+        } catch (gistError: any) {
           console.error('Error creating gist:', gistError)
+          
+          // Return content even if gist creation fails
           return NextResponse.json({ 
-            error: 'Failed to create GitHub Gist',
+            error: gistError.message || 'Failed to create GitHub Gist',
             markdownContent,
             plainTextContent,
             promptName: prompt.name
@@ -76,9 +80,9 @@ export async function POST(request: Request) {
           promptName: prompt.name
         })
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to share prompt:', error)
-    return NextResponse.json({ error: 'Failed to share prompt' }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Failed to share prompt' }, { status: 500 })
   }
 }
 

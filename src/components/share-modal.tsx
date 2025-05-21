@@ -98,9 +98,11 @@ export function ShareModal({ promptPath, promptName, onClose }: ShareModalProps)
           plainTextContent: data.plainTextContent
         })
       }
+      return true
     } catch (err: any) {
       console.error('Error sharing to gist:', err)
       setError(err.message || 'Failed to create GitHub Gist')
+      return false
     } finally {
       setLoading(false)
     }
@@ -123,30 +125,37 @@ export function ShareModal({ promptPath, promptName, onClose }: ShareModalProps)
 
   // Function to generate social media share links
   const updateSocialLinks = useCallback(async () => {
-    // For social sharing, we need a Gist link for longer content
-    if (!shareUrl && activeTab === 'social') {
-      await shareToGist()
-      return // The effect will call this function again once shareUrl is set
-    }
-    
+    // Initialize social links regardless of Gist availability
     const shareText = encodeURIComponent(`Check out this prompt in IntelliLLM Playground: ${promptName}`)
     
-    // Use the Gist URL if available, otherwise we'll just share the prompt name
+    // Prepare content to share
+    const contentToShare = promptContent ? 
+      encodeURIComponent(`${promptName}\n\n${promptContent.plainTextContent.substring(0, 280)}`) : 
+      shareText
+    
+    // Use direct content for Twitter (with character limit)
+    // Use the Gist URL for Facebook and LinkedIn if available
     const shareLink = shareUrl ? encodeURIComponent(shareUrl) : ''
     
     setSocialLinks({
-      twitter: `https://twitter.com/intent/tweet?text=${shareText}&url=${shareLink}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${shareLink}`,
-      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${shareLink}`
+      // Twitter has a character limit, so we share direct content with truncation if needed
+      twitter: `https://twitter.com/intent/tweet?text=${contentToShare}`,
+      // Facebook and LinkedIn work better with URLs
+      facebook: shareUrl ? 
+        `https://www.facebook.com/sharer/sharer.php?u=${shareLink}` :
+        `https://www.facebook.com/sharer/sharer.php?quote=${contentToShare}`,
+      linkedin: shareUrl ? 
+        `https://www.linkedin.com/sharing/share-offsite/?url=${shareLink}` :
+        `https://www.linkedin.com/sharing/share-offsite/?text=${contentToShare}`
     })
-  }, [shareUrl, activeTab, promptName, shareToGist])
+  }, [shareUrl, promptName, promptContent])
 
-  // Effect to update social links when tab changes
+  // Effect to update social links when tab changes or when we have prompt content
   useEffect(() => {
-    if (activeTab === 'social') {
+    if (activeTab === 'social' && promptContent) {
       updateSocialLinks()
     }
-  }, [activeTab, updateSocialLinks])
+  }, [activeTab, promptContent, updateSocialLinks])
 
   // Function to copy URL or content to clipboard
   const copyToClipboard = async (textToCopy: string | null) => {
@@ -301,41 +310,49 @@ export function ShareModal({ promptPath, promptName, onClose }: ShareModalProps)
             <p className="text-sm mb-4 text-gray-700 dark:text-gray-300">
               Share this prompt on social media:
             </p>
-            {!shareUrl && !error ? (
-              <div className="text-center py-4">
-                <p className="text-sm mb-2">Creating a public link to share...</p>
-                <button
-                  onClick={shareToGist}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Create shareable link
-                </button>
-              </div>
-            ) : socialLinks ? (
+            {promptContent ? (
               <div className="grid grid-cols-3 gap-3">
                 <a
-                  href={socialLinks.twitter}
+                  href={socialLinks?.twitter || "#"}
                   className="px-4 py-2 bg-[#1DA1F2] text-white rounded hover:bg-opacity-90 flex items-center justify-center"
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => {
+                    if (!socialLinks) {
+                      e.preventDefault();
+                      updateSocialLinks();
+                    }
+                  }}
                 >
                   <Twitter className="w-4 h-4 mr-2" />
                   Twitter
                 </a>
                 <a
-                  href={socialLinks.facebook}
+                  href={socialLinks?.facebook || "#"}
                   className="px-4 py-2 bg-[#4267B2] text-white rounded hover:bg-opacity-90 flex items-center justify-center"
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => {
+                    if (!socialLinks) {
+                      e.preventDefault();
+                      updateSocialLinks();
+                    }
+                  }}
                 >
                   <Facebook className="w-4 h-4 mr-2" />
                   Facebook
                 </a>
                 <a
-                  href={socialLinks.linkedin}
+                  href={socialLinks?.linkedin || "#"}
                   className="px-4 py-2 bg-[#0A66C2] text-white rounded hover:bg-opacity-90 flex items-center justify-center"
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => {
+                    if (!socialLinks) {
+                      e.preventDefault();
+                      updateSocialLinks();
+                    }
+                  }}
                 >
                   <Linkedin className="w-4 h-4 mr-2" />
                   LinkedIn
@@ -343,7 +360,7 @@ export function ShareModal({ promptPath, promptName, onClose }: ShareModalProps)
               </div>
             ) : (
               <div className="text-center py-4">
-                <p className="text-sm">Failed to generate social media links.</p>
+                <p className="text-sm">Loading prompt content...</p>
               </div>
             )}
           </div>

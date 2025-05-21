@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     }
     
     // Split content by system prompt marker if it exists
-    const [userPrompt, systemPrompt] = promptContent.split('## System Prompt').map(s => s.trim())
+    const [userPrompt, systemPrompt] = promptContent.split('## System Prompt').map((s: string) => s.trim())
     
     // Get metadata
     let metadata

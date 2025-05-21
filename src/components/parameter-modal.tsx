@@ -189,15 +189,8 @@ export function ParameterModal({ parameters, promptText, systemPrompt, tabId, ta
       try {
         if (value.startsWith('{')) {
           const fileTokens = estimateFileTokens(value);
-          
-          // Warning for large token counts
-          if (fileTokens > 50000) {
-            setErrors(prev => ({
-              ...prev, 
-              [paramName]: `Warning: This file may use ~${fileTokens.toLocaleString()} tokens`
-            }));
-            return;
-          }
+          // We don't need to show a red error message for high token counts
+          // The yellow warning at the bottom of the modal serves the same purpose
         }
       } catch (e) {
         console.warn('Error estimating file tokens:', e);

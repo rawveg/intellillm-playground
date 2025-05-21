@@ -473,7 +473,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           <div className="flex items-center space-x-1">
             <ArrowUpDown className="w-4 h-4 text-gray-500" />
             <select 
-              className="p-2 text-sm border rounded dark:bg-gray-800 dark:border-gray-700"
+              className="h-10 p-2 text-sm border rounded dark:bg-gray-800 dark:border-gray-700"
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as any)}
             >

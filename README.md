@@ -23,6 +23,7 @@
 - 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
 - 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration.
 - 📂 **Prompt Management**: Import/export prompts (with metadata), folder organization, drag-and-drop file management, filtering/sorting controls, persistent model settings, and YAML frontmatter support.
+- 🔗 **Prompt Sharing**: Share prompts directly via GitHub Gist, email, or social media platforms.
 - 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax, which can be filled in at runtime via an intuitive modal interface.
 - 🧠 **Web Search Augmentation**: 
   - Toggleable real-time web search via DuckDuckGo, with search terms auto-extracted by an LLM meta-prompt.
@@ -373,6 +374,7 @@ Some examples of what you can build:
 | `/api/prompts/[name]`    | DELETE | Delete a prompt/folder by name        |
 | `/api/prompts/[name]`    | PATCH  | Move a prompt/folder to new location  |
 | `/api/search`            | POST   | Search DuckDuckGo and return snippets |
+| `/api/share`             | POST   | Share a prompt via GitHub Gist        |
 
 ---
 

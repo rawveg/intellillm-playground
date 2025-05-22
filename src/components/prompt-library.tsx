@@ -445,35 +445,6 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
       setCurrentExecutingPrompt(null)
     }
   }
-      
-      const data = await response.json()
-      
-      let result: string = ''
-      
-      // Extract the result based on the response format
-      if (data.choices && data.choices[0]?.message?.content) {
-        result = data.choices[0].message.content
-      } else if (data.message?.content) {
-        result = data.message.content
-      } else if (data.content) {
-        result = data.content
-      } else if (data.error) {
-        result = `Error: ${data.error.message || 'Unknown error'}`
-      } else {
-        result = 'Unknown response format'
-      }
-      
-      // Display the result in the modal
-      setPromptResult(result)
-      setShowResultsModal(true)
-    } catch (error) {
-      setPromptResult(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`)
-      setShowResultsModal(true)
-    } finally {
-      setIsExecutingPrompt(false)
-      setCurrentExecutingPrompt(null)
-    }
-  }
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return

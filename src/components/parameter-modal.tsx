@@ -105,6 +105,32 @@ const generateYearOptions = (pastYears: number = 5, futureYears: number = 5): { 
   return years;
 };
 
+/**
+ * Sanitize file content to prevent prompt injection
+ * @param content Raw file content
+ * @returns Sanitized content
+ */
+const sanitizeFileContent = (content: string): string => {
+  // Basic sanitization to prevent prompt injection
+  // Remove potentially dangerous elements like {{, }}, etc.
+  // that could interfere with parameter processing
+  let sanitized = content;
+  
+  // Remove characters that could be used for parameter injection
+  // This is a simple approach - more sophisticated approaches may be needed
+  // depending on the specific security requirements
+  sanitized = sanitized.replace(/[{}\\]/g, (match) => {
+    switch (match) {
+      case '{': return '\\{';
+      case '}': return '\\}';
+      case '\\': return '\\\\';
+      default: return match;
+    }
+  });
+  
+  return sanitized;
+};
+
 export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel }: ParameterModalProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -261,6 +287,89 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
     const validationHint = hasValidation ? getValidationHint(param) : '';
     
     switch (param.type) {
+      case 'file':
+        return (
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <div className="flex items-center space-x-2">
+              <input 
+                type="file"
+                id={`param-${param.name}-file`}
+                accept=".txt,.md"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  // Validate file type
+                  const validTypes = ['.txt', '.md', 'text/plain', 'text/markdown'];
+                  const isValidType = validTypes.some(type => 
+                    file.name.endsWith(type) || file.type === type
+                  );
+                  
+                  if (!isValidType) {
+                    setErrors(prev => ({ 
+                      ...prev, 
+                      [param.name]: 'Only .txt and .md files are allowed' 
+                    }));
+                    return;
+                  }
+                  
+                  // Check file size (limit to 1MB)
+                  const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+                  if (file.size > MAX_FILE_SIZE) {
+                    setErrors(prev => ({ 
+                      ...prev, 
+                      [param.name]: 'File size must be less than 1MB' 
+                    }));
+                    return;
+                  }
+                  
+                  // Read the file content
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const content = reader.result as string;
+                    // Sanitize the content to prevent prompt injection
+                    const sanitizedContent = sanitizeFileContent(content);
+                    handleChange(param.name, sanitizedContent);
+                  };
+                  reader.onerror = () => {
+                    setErrors(prev => ({ 
+                      ...prev, 
+                      [param.name]: 'Error reading file' 
+                    }));
+                  };
+                  reader.readAsText(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => document.getElementById(`param-${param.name}-file`)?.click()}
+                className="px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
+              >
+                Browse...
+              </button>
+              <div className="text-sm overflow-hidden text-ellipsis whitespace-nowrap flex-1">
+                {value ? `${value.length} characters loaded` : 'No file selected'}
+              </div>
+              {value && (
+                <button
+                  type="button"
+                  onClick={() => handleChange(param.name, '')}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                  title="Clear file"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+        
       case 'multiline':
         return (
           <div>

@@ -245,7 +245,7 @@ export function extractParameters(promptText: string): ParameterInfo[] {
     if (typeOrValidation) {
       // If it's a known field type, it's a type
       const knownTypes = ['text', 'multiline', 'number', 'email', 'url', 'checkbox', 
-                          'select', 'multiselect', 'radio', 'date', 'time', 'month', 'year'];
+                          'select', 'multiselect', 'radio', 'date', 'time', 'month', 'year', 'file'];
       
       if (knownTypes.includes(typeOrValidation.trim().toLowerCase()) || 
           typeOrValidation.trim().toLowerCase().startsWith('year-')) {

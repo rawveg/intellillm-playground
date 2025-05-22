@@ -861,8 +861,8 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                         title="Run prompt"
                         disabled={isExecutingPrompt}
                       >
-                        {isExecutingPrompt ? (
-                          <span className="animate-spin">↻</span>
+                        {isExecutingPrompt && currentExecutingPrompt?.path === item.path ? (
+                          <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
                         ) : (
                           <Play className="w-4 h-4" />
                         )}

@@ -44,7 +44,7 @@ export function ResultsModal({ result, onClose }: ResultsModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
           <h2 className="text-lg font-semibold">Prompt Results</h2>
@@ -57,7 +57,7 @@ export function ResultsModal({ result, onClose }: ResultsModalProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <RadixTabs.Root 
             value={activeResultView} 
             onValueChange={(value) => setActiveResultView(value as 'text' | 'markdown')}
@@ -78,7 +78,7 @@ export function ResultsModal({ result, onClose }: ResultsModalProps) {
               </RadixTabs.Trigger>
             </RadixTabs.List>
 
-            <RadixTabs.Content value="text" className="flex-1 overflow-auto"> 
+            <RadixTabs.Content value="text" className="flex-1 overflow-auto h-full"> 
               <Editor
                 value={result}
                 onChange={() => {}} // Read-only
@@ -87,7 +87,7 @@ export function ResultsModal({ result, onClose }: ResultsModalProps) {
               />
             </RadixTabs.Content>
 
-            <RadixTabs.Content value="markdown" className="flex-1 overflow-auto p-4 bg-background">
+            <RadixTabs.Content value="markdown" className="flex-1 overflow-auto p-4 bg-background h-full">
               <ReactMarkdown className="markdown-content">{result || ''}</ReactMarkdown>
             </RadixTabs.Content>
           </RadixTabs.Root>

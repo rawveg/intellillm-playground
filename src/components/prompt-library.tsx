@@ -54,6 +54,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const [showParamModal, setShowParamModal] = useState(false)
   const [activeParameters, setActiveParameters] = useState<ParameterInfo[]>([])
   const [currentExecutingPrompt, setCurrentExecutingPrompt] = useState<PromptFile | null>(null)
+  const [executedPromptName, setExecutedPromptName] = useState('')
 
   useEffect(() => {
     loadContents(currentPath)
@@ -312,6 +313,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
       
       // Store the current prompt being executed
       setCurrentExecutingPrompt(prompt)
+      setExecutedPromptName(prompt.name)
       
       // Check for parameters in both the main prompt and system prompt
       const mainPromptParameters = extractParameters(prompt.content)
@@ -357,6 +359,9 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
       if (processedSystemPrompt) {
         processedSystemPrompt = replaceParameters(processedSystemPrompt, paramValues)
       }
+      
+      // Store the prompt name for the results modal
+      setExecutedPromptName(currentExecutingPrompt.name)
       
       // Hide the parameter modal
       setShowParamModal(false)
@@ -1035,7 +1040,7 @@ Search Terms:`;
         <ResultsModal
           result={promptResult}
           onClose={() => setShowResultsModal(false)}
-          title={`Results: ${currentExecutingPrompt?.name || 'Prompt'}`}
+          title={`Results: ${executedPromptName || 'Prompt'}`}
         />
       )}
 

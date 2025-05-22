@@ -800,6 +800,12 @@ Content: ${snippet.text}
     }))
   }
 
+  /**
+   * Handle selection of a prompt from the library
+   * @param prompt - The selected prompt file(s)
+   * @param options - Additional options
+   * @param options.runImmediately - When true, execute the prompt automatically after opening
+   */
   const handlePromptSelect = (prompt: PromptFile | PromptFile[], options?: { runImmediately?: boolean }) => {
     // Handle array of prompts for bulk operations
     if (Array.isArray(prompt)) {
@@ -871,7 +877,7 @@ Content: ${snippet.text}
       if (options?.runImmediately && tabIds.length > 0) {
         setTimeout(() => {
           runPrompt();
-        }, 100); // Small delay to ensure the UI is updated
+        }, 300); // Longer delay to ensure the UI is fully updated
       }
       
       // Update model config settings
@@ -912,6 +918,13 @@ Content: ${snippet.text}
         } : tab
       ))
       setActiveTab(existingTab.id)
+      
+      // Run the prompt immediately if specified for existing tabs
+      if (options?.runImmediately) {
+        setTimeout(() => {
+          runPrompt();
+        }, 300); // Longer delay to ensure the UI is fully updated
+      }
     } else {
       // Create new tab
       const newId = String(nextTabId)
@@ -953,7 +966,7 @@ Content: ${snippet.text}
     if (options?.runImmediately) {
       setTimeout(() => {
         runPrompt();
-      }, 100); // Small delay to ensure the UI is updated
+      }, 300); // Longer delay to ensure the UI is fully updated
     }
   }
 

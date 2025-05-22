@@ -7,6 +7,12 @@ import { ImportGistModal } from './import-gist-modal'
 import { ExportGistModal } from './export-gist-modal'
 
 interface PromptLibraryProps {
+  /**
+   * Callback function triggered when a prompt is selected from the library
+   * @param prompt - The selected prompt file(s)
+   * @param options - Optional settings
+   * @param options.runImmediately - When true, execute the prompt automatically after selection
+   */
   onPromptSelect: (prompt: PromptFile | PromptFile[], options?: { runImmediately?: boolean }) => void
 }
 
@@ -201,6 +207,10 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     }
   }
 
+  /**
+   * Load a prompt and immediately execute it
+   * @param filePath - Path to the prompt file to run
+   */
   const runPrompt = async (filePath: string) => {
     try {
       const encodedPath = encodeURIComponent(filePath)

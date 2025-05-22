@@ -261,6 +261,77 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
     const validationHint = hasValidation ? getValidationHint(param) : '';
     
     switch (param.type) {
+      case 'file':
+        return (
+          <div>
+            {validationHint && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {validationHint}
+              </div>
+            )}
+            <div className="flex items-center space-x-2">
+              <input 
+                type="file"
+                id={`param-${param.name}-file`}
+                accept=".txt,.md"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  // Validate file type
+                  const validTypes = ['.txt', '.md', 'text/plain', 'text/markdown'];
+                  const isValidType = validTypes.some(type => 
+                    file.name.endsWith(type) || file.type === type
+                  );
+                  
+                  if (!isValidType) {
+                    setErrors(prev => ({ 
+                      ...prev, 
+                      [param.name]: 'Only .txt and .md files are allowed' 
+                    }));
+                    return;
+                  }
+                  
+                  // Read the file content
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const content = reader.result as string;
+                    handleChange(param.name, content);
+                  };
+                  reader.onerror = () => {
+                    setErrors(prev => ({ 
+                      ...prev, 
+                      [param.name]: 'Error reading file' 
+                    }));
+                  };
+                  reader.readAsText(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => document.getElementById(`param-${param.name}-file`)?.click()}
+                className="px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
+              >
+                Browse...
+              </button>
+              <div className="text-sm overflow-hidden text-ellipsis whitespace-nowrap flex-1">
+                {value ? `${value.length} characters loaded` : 'No file selected'}
+              </div>
+              {value && (
+                <button
+                  type="button"
+                  onClick={() => handleChange(param.name, '')}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                  title="Clear file"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+        
       case 'multiline':
         return (
           <div>

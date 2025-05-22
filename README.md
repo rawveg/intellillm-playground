@@ -237,6 +237,29 @@ When you run a prompt containing parameters:
 {{Year|year:10-2}}              # Custom range (10 years back, 2 years forward)
 ```
 
+##### File Parameter
+
+```markdown
+{{TextData|file}}               # File parameter that allows embedding text file contents in prompts
+```
+
+The `file` parameter type allows users to select and embed the contents of text files (.txt or .md) directly into the prompt. This is useful for including reference material, sample code, or other text-based content without manual copy/paste.
+
+**Usage Example:**
+
+```markdown
+Analyze the following text and provide a summary:
+
+{{Content|file}}
+
+Focus on the main themes and key points.
+```
+
+**Security Restrictions:**
+- Only text files (.txt) and markdown files (.md) are allowed
+- File contents are read as plain text and embedded directly in the prompt
+- Maximum file size is determined by the model's context limit
+
 ##### Example with Multiple Parameter Types
 
 ```markdown
@@ -313,6 +336,7 @@ Some examples of what you can build:
 - Date-aware templates that use the current date/time
 - Multi-select options for complex preference gathering
 - Templates with sensible defaults that can be overridden
+- Text file inclusion for analyzing documents or code samples
 
 ##### 🚦 Parameter Guidelines & Limitations
 

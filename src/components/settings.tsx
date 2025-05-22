@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Laptop, RotateCcw, Search } from 'lucide-react'
+import { Sun, Moon, Laptop, RotateCcw, Search, CopyCheck } from 'lucide-react'
 
 interface ModelConfig {
   temperature: number
@@ -53,6 +53,7 @@ export function Settings({
   const [modelFilter, setModelFilter] = useState('')
   const [modelConfig, setModelConfig] = useState<ModelConfig>(defaultConfig)
   const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
+  const [promptCacheEnabled, setPromptCacheEnabled] = useState<boolean>(false);
   const [modifiedFlags, setModifiedFlags] = useState<ModifiedFlags>({
     temperature: false,
     top_p: false,
@@ -95,6 +96,12 @@ export function Settings({
       setWebSearchEnabled(storedWebSearchEnabled === 'true');
     }
 
+    // Load prompt cache enabled state
+    const storedPromptCacheEnabled = localStorage.getItem('prompt_cache_enabled');
+    if (storedPromptCacheEnabled) {
+      setPromptCacheEnabled(storedPromptCacheEnabled === 'true');
+    }
+
     // Listen for model changes from other components
     const handleModelChange = (event: CustomEvent<{ model: string }>) => {
       setSelectedModel(event.detail.model)
@@ -119,14 +126,20 @@ export function Settings({
       setWebSearchEnabled(event.detail.enabled);
     };
 
+    const handlePromptCacheConfigChange = (event: CustomEvent<{ enabled: boolean }>) => {
+      setPromptCacheEnabled(event.detail.enabled);
+    };
+
     window.addEventListener('modelChange', handleModelChange as EventListener)
     window.addEventListener('modelConfigChange', handleModelConfigChange as EventListener)
     window.addEventListener('webSearchConfigChange', handleWebSearchConfigChange as EventListener);
+    window.addEventListener('promptCacheConfigChange', handlePromptCacheConfigChange as EventListener);
     
     return () => {
       window.removeEventListener('modelChange', handleModelChange as EventListener)
       window.removeEventListener('modelConfigChange', handleModelConfigChange as EventListener)
       window.removeEventListener('webSearchConfigChange', handleWebSearchConfigChange as EventListener);
+      window.removeEventListener('promptCacheConfigChange', handlePromptCacheConfigChange as EventListener);
     }
 
     try {
@@ -195,6 +208,14 @@ export function Settings({
       detail: { enabled: webSearchEnabled }
     }));
   }, [webSearchEnabled]);
+
+  // Save promptCacheEnabled to localStorage and dispatch event when it changes
+  useEffect(() => {
+    localStorage.setItem('prompt_cache_enabled', String(promptCacheEnabled));
+    window.dispatchEvent(new CustomEvent('promptCacheConfigChange', {
+      detail: { enabled: promptCacheEnabled }
+    }));
+  }, [promptCacheEnabled]);
 
   // Update localStorage when config changes
   useEffect(() => {
@@ -369,6 +390,21 @@ export function Settings({
               }`}
           >
             <Search size={16} className="mr-2" /> Web Search
+          </button>
+        </div>
+
+        {/* Prompt Cache Toggle */}
+        <div className="pb-2"> 
+          <button
+            type="button"
+            onClick={() => setPromptCacheEnabled(!promptCacheEnabled)}
+            className={`w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+              ${promptCacheEnabled 
+                ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+                : 'bg-gray-300 text-gray-800 hover:bg-gray-400 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+              }`}
+          >
+            <CopyCheck size={16} className="mr-2" /> Prompt Caching
           </button>
         </div>
 

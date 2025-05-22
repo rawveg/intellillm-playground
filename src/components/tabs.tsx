@@ -300,6 +300,7 @@ Search Terms:`;
                   'Content-Type': 'application/json',
                   'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
                   'X-Title': typeof window !== 'undefined' ? document.title.slice(0,30) : 'Intellillm Playground',
+                  ...(localStorage.getItem("prompt_cache_enabled") === "true" ? { "cache-control": "max-age=300" } : {}),
                 },
                 body: JSON.stringify({
                   model: selectedModelForAncillaryCall,
@@ -483,6 +484,7 @@ Content: ${snippet.text}
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': window.location.origin,
+          ...(localStorage.getItem('prompt_cache_enabled') === 'true' ? { 'cache-control': 'max-age=300' } : {}),
         },
         body: JSON.stringify(requestBody)
       })

@@ -258,7 +258,8 @@ Focus on the main themes and key points.
 **Security Restrictions:**
 - Only text files (.txt) and markdown files (.md) are allowed
 - File contents are read as plain text and embedded directly in the prompt
-- Maximum file size is determined by the model's context limit
+- Maximum file size is limited to 1MB
+- Special characters are escaped to prevent prompt injection
 
 ##### Example with Multiple Parameter Types
 

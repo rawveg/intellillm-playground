@@ -105,6 +105,32 @@ const generateYearOptions = (pastYears: number = 5, futureYears: number = 5): { 
   return years;
 };
 
+/**
+ * Sanitize file content to prevent prompt injection
+ * @param content Raw file content
+ * @returns Sanitized content
+ */
+const sanitizeFileContent = (content: string): string => {
+  // Basic sanitization to prevent prompt injection
+  // Remove potentially dangerous elements like {{, }}, etc.
+  // that could interfere with parameter processing
+  let sanitized = content;
+  
+  // Remove characters that could be used for parameter injection
+  // This is a simple approach - more sophisticated approaches may be needed
+  // depending on the specific security requirements
+  sanitized = sanitized.replace(/[{}\\]/g, (match) => {
+    switch (match) {
+      case '{': return '\\{';
+      case '}': return '\\}';
+      case '\\': return '\\\\';
+      default: return match;
+    }
+  });
+  
+  return sanitized;
+};
+
 export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel }: ParameterModalProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -293,11 +319,23 @@ export function ParameterModal({ parameters, tabId, tabName, onSubmit, onCancel 
                     return;
                   }
                   
+                  // Check file size (limit to 1MB)
+                  const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+                  if (file.size > MAX_FILE_SIZE) {
+                    setErrors(prev => ({ 
+                      ...prev, 
+                      [param.name]: 'File size must be less than 1MB' 
+                    }));
+                    return;
+                  }
+                  
                   // Read the file content
                   const reader = new FileReader();
                   reader.onload = () => {
                     const content = reader.result as string;
-                    handleChange(param.name, content);
+                    // Sanitize the content to prevent prompt injection
+                    const sanitizedContent = sanitizeFileContent(content);
+                    handleChange(param.name, sanitizedContent);
                   };
                   reader.onerror = () => {
                     setErrors(prev => ({ 

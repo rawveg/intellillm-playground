@@ -110,14 +110,16 @@ export function Tabs() {
   }
   const [activeResultView, setActiveResultView] = useState<'text' | 'markdown'>('text');
 
-  // Update settings whenever active tab changes
+
+  
+  // Update settings only when active tab changes, not when content or loading state changes
+  // This ensures max_tokens and other settings don't reset when receiving API responses
   useEffect(() => {
-    // Only update settings when switching tabs, not when tabs state changes
     const activePrompt = tabs.find(tab => tab.id === activeTab);
-    if (activePrompt && !activePrompt.isLoading) {
+    if (activePrompt) {
       updateModelSettings(activeTab);
     }
-  }, [activeTab, tabs]);
+  }, [activeTab]); // Only depend on activeTab, not tabs
 
   const addTab = () => {
     const newId = String(nextTabId)

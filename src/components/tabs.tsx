@@ -162,8 +162,18 @@ export function Tabs() {
   }
 
   const runPrompt = async () => {
+    console.log('[runPrompt] Beginning prompt execution process');
     const activePrompt = tabs.find(tab => tab.id === activeTab);
-    if (!activePrompt) return;
+    if (!activePrompt) {
+      console.error('[runPrompt] No active prompt found for execution');
+      return;
+    }
+    
+    console.log('[runPrompt] Active prompt:', { 
+      id: activePrompt.id, 
+      name: activePrompt.name, 
+      contentLength: activePrompt.content?.length || 0
+    });
     
     try {
       // Check for parameters in both the main prompt and system prompt
@@ -183,15 +193,18 @@ export function Tabs() {
       });
       
       if (allParameters.length > 0) {
+        console.log('[runPrompt] Parameters found, showing parameter modal', allParameters);
         // If parameters exist, show the modal
         setActiveParameters(allParameters);
         setShowParamModal(true);
         return;
       }
       
+      console.log('[runPrompt] No parameters found, proceeding with execution');
       // If no parameters, proceed with the normal flow
       await executePrompt(activePrompt.content);
     } catch (error: unknown) {
+      console.error('[runPrompt] Error during parameter processing:', error);
       // Handle parameter validation errors
       if (error instanceof Error) {
         if (error.name === 'ParameterValidationError') {
@@ -261,15 +274,30 @@ export function Tabs() {
   // Extract the existing prompt execution logic to a separate function
   const executePrompt = async (promptContent: string) => {
     console.log('[executePrompt] Starting execution with content:', promptContent);
+    console.log('[executePrompt] Current active tab ID:', activeTab);
+    console.log('[executePrompt] All tab IDs:', tabs.map(tab => tab.id));
+    
     const activePrompt = tabs.find(tab => tab.id === activeTab);
     if (!activePrompt) {
       console.error('[executePrompt] No active prompt found');
       return;
     }
+    
+    console.log('[executePrompt] Active prompt found:', { 
+      name: activePrompt.name, 
+      isLibrary: activePrompt.isLibrary
+    });
 
     setTabs(tabs.map(tab =>
       tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab
     ));
+    
+    // Double check that we still have the active tab after state update
+    const tabStillExists = tabs.some(tab => tab.id === activeTab);
+    if (!tabStillExists) {
+      console.error('[executePrompt] Tab no longer exists after setting loading state');
+      return;
+    }
 
     let searchResultsContext = '';
     const isWebSearchEnabled = localStorage.getItem('web_search_enabled') === 'true';
@@ -804,7 +832,7 @@ Content: ${snippet.text}
    * Handle selection of a prompt from the library
    * @param prompt - The selected prompt file(s)
    * @param options - Additional options
-   * @param options.runImmediately - When true, execute the prompt automatically after opening
+   * @param options.runImmediately - When true, execute the prompt automatically after selection
    */
   const handlePromptSelect = (prompt: PromptFile | PromptFile[], options?: { runImmediately?: boolean }) => {
     // Handle array of prompts for bulk operations
@@ -873,13 +901,6 @@ Content: ${snippet.text}
         }));
       }
       
-      // Run the prompt immediately if specified
-      if (options?.runImmediately && tabIds.length > 0) {
-        setTimeout(() => {
-          runPrompt();
-        }, 300); // Longer delay to ensure the UI is fully updated
-      }
-      
       // Update model config settings
       const modelConfig: Record<string, any> = { ...firstPrompt.metadata };
       if (modelConfig.model !== undefined) delete modelConfig.model;
@@ -890,6 +911,36 @@ Content: ${snippet.text}
         window.dispatchEvent(new CustomEvent('modelConfigChange', { 
           detail: { config: modelConfig } 
         }));
+      }
+      
+      // Run the prompt immediately if specified
+      if (options?.runImmediately && tabIds.length > 0) {
+        // Store the tab ID we want to run
+        const tabIdToRun = tabIds[0];
+        const tabContent = prompt[0].content;
+        
+        // Use a longer timeout and more robust execution approach
+        setTimeout(() => {
+          console.log('[handlePromptSelect] Running array prompt after timeout', { 
+            tabIdToRun, 
+            currentActiveTab: activeTab
+          });
+          
+          // Set the tab as active again to ensure it's the current tab
+          setActiveTab(tabIdToRun);
+          
+          // Use another timeout to ensure the tab switch has taken effect
+          setTimeout(() => {
+            if (tabIdToRun === activeTab) {
+              console.log('[handlePromptSelect] Array tab is active, executing prompt');
+              runPrompt();
+            } else {
+              console.log('[handlePromptSelect] Array tab is not active, manually executing for tab:', tabIdToRun);
+              // Fallback to direct execution
+              executePrompt(tabContent);
+            }
+          }, 100);
+        }, 500);
       }
       
       return;
@@ -909,7 +960,7 @@ Content: ${snippet.text}
     )
 
     if (existingTab) {
-      // Update metadata of existing tab
+      // Update metadata of existing tab and set it as active in one operation
       setTabs(tabs.map(tab =>
         tab.id === existingTab.id ? { 
           ...tab, 
@@ -917,56 +968,110 @@ Content: ${snippet.text}
           path: prompt.path // Store full path
         } : tab
       ))
+      
+      // Set active tab
       setActiveTab(existingTab.id)
       
       // Run the prompt immediately if specified for existing tabs
       if (options?.runImmediately) {
+        // Store the tab ID we want to run
+        const tabIdToRun = existingTab.id;
+        const tabContent = prompt.content;
+        
+        // Use a longer timeout and more robust approach similar to the new tab case
         setTimeout(() => {
-          runPrompt();
-        }, 300); // Longer delay to ensure the UI is fully updated
+          console.log('[handlePromptSelect] Running existing tab prompt after timeout', { 
+            tabIdToRun, 
+            currentActiveTab: activeTab
+          });
+          
+          // Set the tab as active again to ensure it's the current tab
+          setActiveTab(tabIdToRun);
+          
+          // Use another timeout to ensure the tab switch has taken effect
+          setTimeout(() => {
+            if (tabIdToRun === activeTab) {
+              console.log('[handlePromptSelect] Existing tab is active, executing prompt');
+              runPrompt();
+            } else {
+              console.log('[handlePromptSelect] Existing tab is not active, manually executing for tab:', tabIdToRun);
+              // Fallback to direct execution
+              executePrompt(tabContent);
+            }
+          }, 100);
+        }, 500);
       }
     } else {
-      // Create new tab
-      const newId = String(nextTabId)
-      setTabs([...tabs, { 
+      // For new tabs, use functional update to ensure we have the latest state
+      const newId = String(nextTabId);
+      
+      // Create new tab and add it to tabs array
+      const newTab = { 
         id: newId, 
         name: displayName,
         content: prompt.content,
         systemPrompt: prompt.systemPrompt,
         metadata: prompt.metadata,
         path: prompt.path, // Store full path
-      }])
-      setActiveTab(newId)
-      setNextTabId(nextTabId + 1)
-    }
+      };
+      
+      // Update state with the new tab and set it as active
+      setTabs(prevTabs => [...prevTabs, newTab]);
+      setNextTabId(nextTabId + 1);
+      setActiveTab(newId);
+      
+      // Restore model settings if present
+      if (prompt.metadata?.model) {
+        localStorage.setItem('selected_model', prompt.metadata.model)
+        // Trigger model update in Settings component
+        window.dispatchEvent(new CustomEvent('modelChange', { 
+          detail: { model: prompt.metadata.model } 
+        }))
+      }
 
-    // Restore model settings if present
-    if (prompt.metadata?.model) {
-      localStorage.setItem('selected_model', prompt.metadata.model)
-      // Trigger model update in Settings component
-      window.dispatchEvent(new CustomEvent('modelChange', { 
-        detail: { model: prompt.metadata.model } 
-      }))
-    }
+      // Update model config settings
+      const modelConfig: Record<string, any> = { ...prompt.metadata }
+      if (modelConfig.model !== undefined) delete modelConfig.model
+      if (modelConfig.created !== undefined) delete modelConfig.created
 
-    // Update model config settings
-    const modelConfig: Record<string, any> = { ...prompt.metadata }
-    if (modelConfig.model !== undefined) delete modelConfig.model
-    if (modelConfig.created !== undefined) delete modelConfig.created
-
-    // Only update if there are actual config settings
-    if (Object.keys(modelConfig).length > 0) {
-      localStorage.setItem('model_config', JSON.stringify(modelConfig))
-      window.dispatchEvent(new CustomEvent('modelConfigChange', { 
-        detail: { config: modelConfig } 
-      }))
-    }
-    
-    // Run the prompt immediately if specified
-    if (options?.runImmediately) {
-      setTimeout(() => {
-        runPrompt();
-      }, 300); // Longer delay to ensure the UI is fully updated
+      // Only update if there are actual config settings
+      if (Object.keys(modelConfig).length > 0) {
+        localStorage.setItem('model_config', JSON.stringify(modelConfig))
+        window.dispatchEvent(new CustomEvent('modelConfigChange', { 
+          detail: { config: modelConfig } 
+        }))
+      }
+      
+      // Run the prompt immediately if specified
+      if (options?.runImmediately) {
+        // Store the tab ID we want to run
+        const tabIdToRun = newId;
+        const tabContent = prompt.content;
+        
+        // Use a longer timeout and execute the prompt directly instead of relying on state
+        setTimeout(() => {
+          console.log('[handlePromptSelect] Running prompt after timeout', { 
+            tabIdToRun, 
+            currentActiveTab: activeTab
+          });
+          
+          // Set the tab as active again to ensure it's the current tab
+          setActiveTab(tabIdToRun);
+          
+          // Use another timeout to ensure the tab switch has taken effect
+          setTimeout(() => {
+            if (tabIdToRun === activeTab) {
+              console.log('[handlePromptSelect] Tab is active, executing prompt');
+              runPrompt();
+            } else {
+              console.log('[handlePromptSelect] Tab is not active, manually executing for tab:', tabIdToRun);
+              // If activeTab doesn't match, we might be experiencing a state update issue
+              // As a fallback, manually execute with the prompt content
+              executePrompt(tabContent);
+            }
+          }, 100);
+        }, 500);
+      }
     }
   }
 

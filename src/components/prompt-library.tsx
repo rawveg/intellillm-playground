@@ -213,11 +213,14 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
    */
   const runPrompt = async (filePath: string) => {
     try {
+      console.log('[PromptLibrary] Running prompt:', filePath);
       const encodedPath = encodeURIComponent(filePath)
       const response = await fetch(`/api/prompts/${encodedPath}`)
       const prompt = await response.json()
+      console.log('[PromptLibrary] Prompt loaded successfully, triggering selection with runImmediately=true');
       onPromptSelect(prompt, { runImmediately: true })
     } catch (err) {
+      console.error('[PromptLibrary] Failed to run prompt:', err);
       setError('Failed to run prompt')
     }
   }

@@ -723,18 +723,22 @@ Content: ${snippet.text}
     input.click()
   }
 
-  // Upload document file (PDF)
+  // Upload document file (PDF, TXT, MD)
   const uploadDocumentFile = () => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'application/pdf'
+    input.accept = 'application/pdf,text/plain,text/markdown,.md,.txt'
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
 
       // Validate file type
-      if (file.type !== 'application/pdf') {
-        alert('Please select a valid PDF file.')
+      const validTypes = ['application/pdf', 'text/plain', 'text/markdown']
+      const validExtensions = ['.pdf', '.txt', '.md']
+      const fileExt = '.' + file.name.split('.').pop()?.toLowerCase()
+      
+      if (!validTypes.includes(file.type) && !validExtensions.includes(fileExt)) {
+        alert('Please select a valid document file (PDF, TXT, or MD).')
         return
       }
 
@@ -985,7 +989,7 @@ Content: ${snippet.text}
           <button
             className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
             onClick={uploadDocumentFile}
-            title="Upload PDF Document"
+            title="Upload Document (PDF, TXT, MD)"
             disabled={activePrompt?.isLibrary}
           >
             <FileText className="w-5 h-5" />

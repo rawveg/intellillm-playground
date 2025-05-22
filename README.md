@@ -23,7 +23,7 @@
 - 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
 - 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration.
 - 📂 **Prompt Management**: Import/export prompts (with metadata), folder organization, drag-and-drop file management, filtering/sorting controls, persistent model settings, YAML frontmatter support, and GitHub Gist integration.
-- 📎 **File Attachments**: Upload images (PNG, JPEG, WebP) and documents (PDF, TXT, MD) to include with your prompts.
+- 📎 **File Attachments**: Upload images (PNG, JPEG, WebP) and documents (PDF) to include with your prompts.
 - 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax, which can be filled in at runtime via an intuitive modal interface.
 - 🧠 **Web Search Augmentation**: 
   - Toggleable real-time web search via DuckDuckGo, with search terms auto-extracted by an LLM meta-prompt.
@@ -193,7 +193,7 @@ IntelliLLM Playground supports uploading files alongside your prompts:
 ### Supported File Types
 
 - **Images**: PNG, JPEG, WebP
-- **Documents**: PDF, TXT, MD (Markdown)
+- **Documents**: PDF
 
 ### Usage
 

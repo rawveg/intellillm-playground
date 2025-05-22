@@ -102,7 +102,7 @@ export function Settings({
 
     const handleModelConfigChange = (event: CustomEvent<{ config: Partial<ModelConfig> }>) => {
       setModelConfig(config => ({
-        ...defaultConfig,
+        ...config, // Keep existing settings instead of resetting to defaults
         ...event.detail.config
       }))
       // Update modified flags

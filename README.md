@@ -196,14 +196,18 @@ The Run button feature lets you execute prompts directly from the library:
    - For prompts with parameters, a modal appears to collect parameter values.
    - Previously entered parameter values are remembered for convenience.
 3. **Execution Feedback**: 
-   - Visual loading indicator shows when a prompt is being executed.
-   - Each prompt has its own execution state.
+   - Visual loading indicator appears during prompt execution.
+   - Clear feedback on execution status.
 4. **Results Display**:
    - Results open in a modal with two tabs:
      - Text: Raw output with proper syntax highlighting
      - Markdown: Rendered markdown for better readability
    - Copy to clipboard button for easy sharing
    - Export as markdown file option
+5. **Web Search Integration**:
+   - When web search is enabled in the sidebar, the Run button uses the integrated web search capability.
+   - Makes prompts more powerful with up-to-date information from the web.
+   - Works with any model, no function calling required.
 
 This feature streamlines the workflow for prompt engineers who frequently test and iterate on prompts.
 

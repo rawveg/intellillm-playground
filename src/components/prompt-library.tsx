@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, Github, Import } from 'lucide-react'
+import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, Github, Import, Play } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 import { FolderBrowserModal } from './folder-browser-modal'
 import { DeleteConfirmationModal } from './delete-confirmation-modal'
@@ -7,7 +7,7 @@ import { ImportGistModal } from './import-gist-modal'
 import { ExportGistModal } from './export-gist-modal'
 
 interface PromptLibraryProps {
-  onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
+  onPromptSelect: (prompt: PromptFile | PromptFile[], options?: { runImmediately?: boolean }) => void
 }
 
 interface FileEntry {
@@ -198,6 +198,17 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
       onPromptSelect(prompt)
     } catch (err) {
       setError('Failed to load prompt')
+    }
+  }
+
+  const runPrompt = async (filePath: string) => {
+    try {
+      const encodedPath = encodeURIComponent(filePath)
+      const response = await fetch(`/api/prompts/${encodedPath}`)
+      const prompt = await response.json()
+      onPromptSelect(prompt, { runImmediately: true })
+    } catch (err) {
+      setError('Failed to run prompt')
     }
   }
 
@@ -693,13 +704,25 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 </div>
                 <div className="flex items-center">
                   {!item.isDirectory && (
-                    <button
-                      className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
-                      onClick={() => openExportGistModal(item.path, item.name)}
-                      title="Export to GitHub Gist"
-                    >
-                      <Github className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        className="p-1 hover:text-green-500 dark:hover:text-green-400 mr-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          runPrompt(item.path);
+                        }}
+                        title="Run prompt"
+                      >
+                        <Play className="w-4 h-4" />
+                      </button>
+                      <button
+                        className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
+                        onClick={() => openExportGistModal(item.path, item.name)}
+                        title="Export to GitHub Gist"
+                      >
+                        <Github className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
                   <button
                     className="p-1 hover:text-red-500 dark:hover:text-red-400"

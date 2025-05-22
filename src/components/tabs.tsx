@@ -800,7 +800,7 @@ Content: ${snippet.text}
     }))
   }
 
-  const handlePromptSelect = (prompt: PromptFile | PromptFile[]) => {
+  const handlePromptSelect = (prompt: PromptFile | PromptFile[], options?: { runImmediately?: boolean }) => {
     // Handle array of prompts for bulk operations
     if (Array.isArray(prompt)) {
       if (prompt.length === 0) return;
@@ -865,6 +865,13 @@ Content: ${snippet.text}
         window.dispatchEvent(new CustomEvent('modelChange', { 
           detail: { model: firstPrompt.metadata.model } 
         }));
+      }
+      
+      // Run the prompt immediately if specified
+      if (options?.runImmediately && tabIds.length > 0) {
+        setTimeout(() => {
+          runPrompt();
+        }, 100); // Small delay to ensure the UI is updated
       }
       
       // Update model config settings
@@ -940,6 +947,13 @@ Content: ${snippet.text}
       window.dispatchEvent(new CustomEvent('modelConfigChange', { 
         detail: { config: modelConfig } 
       }))
+    }
+    
+    // Run the prompt immediately if specified
+    if (options?.runImmediately) {
+      setTimeout(() => {
+        runPrompt();
+      }, 100); // Small delay to ensure the UI is updated
     }
   }
 

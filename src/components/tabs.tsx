@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Editor } from './editor'
-import { Plus, X, Save, FileDown, Upload, Play, Loader2 } from 'lucide-react'
+import { Plus, X, Save, FileDown, Upload, Play, Loader2, Image, FileText } from 'lucide-react'
 import * as YAML from 'yaml'
 import { PromptLibrary } from './prompt-library'
 import * as RadixTabs from '@radix-ui/react-tabs';
@@ -27,6 +27,17 @@ interface Tab {
     model?: string
     [key: string]: any
   }
+  // File attachments
+  imageFiles?: Array<{
+    name: string
+    dataUrl: string
+    type: string
+  }>
+  documentFiles?: Array<{
+    name: string
+    dataUrl: string
+    type: string
+  }>
 }
 
 interface RunPromptResponse {
@@ -410,14 +421,49 @@ Content: ${snippet.text}
       if (finalSystemPrompt.trim() !== '') {
         messages.push({ role: 'system', content: finalSystemPrompt });
       }
-      // Ensure user prompt is always added - use the processed content with parameters replaced
-      messages.push({ role: 'user', content: promptContent || " " }); // Use the processed content instead of activePrompt.content
+
+      // Create the user message with content and any files
+      const userMessage: any = { role: 'user', content: [] };
+      
+      // Add text content
+      userMessage.content.push({
+        type: 'text',
+        text: promptContent || " "
+      });
+      
+      // Add image files if any
+      if (activePrompt.imageFiles && activePrompt.imageFiles.length > 0) {
+        activePrompt.imageFiles.forEach(file => {
+          userMessage.content.push({
+            type: 'image_url',
+            image_url: {
+              url: file.dataUrl
+            }
+          });
+        });
+      }
+      
+      // Add document files if any
+      if (activePrompt.documentFiles && activePrompt.documentFiles.length > 0) {
+        activePrompt.documentFiles.forEach(file => {
+          userMessage.content.push({
+            type: 'file',
+            file: {
+              filename: file.name,
+              file_data: file.dataUrl
+            }
+          });
+        });
+      }
+      
+      messages.push(userMessage);
 
       console.log('[executePrompt] Preparing API call with:', {
         model: selectedModel,
         messagesCount: messages.length,
         firstMessage: messages[0]?.role,
-        configKeys: Object.keys(modelConfig)
+        configKeys: Object.keys(modelConfig),
+        hasAttachments: userMessage.content.length > 1
       });
       
       // Use the model config as provided by the user
@@ -638,6 +684,102 @@ Content: ${snippet.text}
     input.click()
   }
 
+  // Upload image file
+  const uploadImageFile = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/png,image/jpeg,image/webp'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      // Validate file type
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+        alert('Please select a valid image file (PNG, JPEG, or WebP).')
+        return
+      }
+
+      // Read and encode the file
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = reader.result as string
+        
+        setTabs(tabs.map(tab => {
+          if (tab.id === activeTab) {
+            return { 
+              ...tab, 
+              imageFiles: [...(tab.imageFiles || []), {
+                name: file.name,
+                dataUrl: dataUrl,
+                type: file.type
+              }]
+            }
+          }
+          return tab
+        }))
+      }
+      reader.readAsDataURL(file)
+    }
+    input.click()
+  }
+
+  // Upload document file (PDF)
+  const uploadDocumentFile = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'application/pdf'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      // Validate file type
+      if (file.type !== 'application/pdf') {
+        alert('Please select a valid PDF file.')
+        return
+      }
+
+      // Read and encode the file
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = reader.result as string
+        
+        setTabs(tabs.map(tab => {
+          if (tab.id === activeTab) {
+            return { 
+              ...tab, 
+              documentFiles: [...(tab.documentFiles || []), {
+                name: file.name,
+                dataUrl: dataUrl,
+                type: file.type
+              }]
+            }
+          }
+          return tab
+        }))
+      }
+      reader.readAsDataURL(file)
+    }
+    input.click()
+  }
+
+  // Remove attached file
+  const removeFile = (fileType: 'image' | 'document', index: number) => {
+    setTabs(tabs.map(tab => {
+      if (tab.id === activeTab) {
+        if (fileType === 'image' && tab.imageFiles) {
+          const newFiles = [...tab.imageFiles]
+          newFiles.splice(index, 1)
+          return { ...tab, imageFiles: newFiles.length > 0 ? newFiles : undefined }
+        } else if (fileType === 'document' && tab.documentFiles) {
+          const newFiles = [...tab.documentFiles]
+          newFiles.splice(index, 1)
+          return { ...tab, documentFiles: newFiles.length > 0 ? newFiles : undefined }
+        }
+      }
+      return tab
+    }))
+  }
+
   const handlePromptSelect = (prompt: PromptFile | PromptFile[]) => {
     // Handle array of prompts for bulk operations
     if (Array.isArray(prompt)) {
@@ -834,6 +976,22 @@ Content: ${snippet.text}
           </button>
           <button
             className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+            onClick={uploadImageFile}
+            title="Upload Image"
+            disabled={activePrompt?.isLibrary}
+          >
+            <Image className="w-5 h-5" />
+          </button>
+          <button
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+            onClick={uploadDocumentFile}
+            title="Upload PDF Document"
+            disabled={activePrompt?.isLibrary}
+          >
+            <FileText className="w-5 h-5" />
+          </button>
+          <button
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
             onClick={savePrompt}
             title="Save Prompt"
           >
@@ -870,6 +1028,48 @@ Content: ${snippet.text}
                   onChange={(value) => updateTabContent(activeTab, value || '')}
                 />
               </div>
+              
+              {/* Attached Files Display */}
+              {((activePrompt?.imageFiles && activePrompt.imageFiles.length > 0) || 
+                (activePrompt?.documentFiles && activePrompt.documentFiles.length > 0)) && (
+                <div className="border-t p-2">
+                  <div className="text-sm font-medium mb-1">Attached Files:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {activePrompt?.imageFiles?.map((file, index) => (
+                      <div 
+                        key={`img-${index}`} 
+                        className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs"
+                      >
+                        <Image className="w-3 h-3" />
+                        <span className="truncate max-w-[100px]">{file.name}</span>
+                        <button 
+                          onClick={() => removeFile('image', index)}
+                          className="hover:text-red-500 ml-1"
+                          title="Remove file"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {activePrompt?.documentFiles?.map((file, index) => (
+                      <div 
+                        key={`doc-${index}`} 
+                        className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs"
+                      >
+                        <FileText className="w-3 h-3" />
+                        <span className="truncate max-w-[100px]">{file.name}</span>
+                        <button 
+                          onClick={() => removeFile('document', index)}
+                          className="hover:text-red-500 ml-1"
+                          title="Remove file"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               {/* System Prompt Section */}
               <div className="border-t flex flex-col">

@@ -119,7 +119,7 @@ export function Tabs() {
   // This ensures max_tokens and other settings don't reset when receiving API responses
   useEffect(() => {
     const activePrompt = tabs.find(tab => tab.id === activeTab);
-    if (activePrompt) {
+    if (activePrompt && !activePrompt.isLibrary) {
       updateModelSettings(activeTab);
     }
   }, [activeTab]); // Only depend on activeTab, not tabs

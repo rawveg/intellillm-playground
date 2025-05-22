@@ -23,6 +23,7 @@
 - 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
 - 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration.
 - 📂 **Prompt Management**: Import/export prompts (with metadata), folder organization, drag-and-drop file management, filtering/sorting controls, persistent model settings, YAML frontmatter support, and GitHub Gist integration.
+- ▶️ **Direct Execution**: Run prompts directly from the library with the Run button without opening them in tabs first.
 - 📎 **File Attachments**: Upload images (PNG, JPEG, WebP) and documents (PDF) to include with your prompts.
 - 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax, which can be filled in at runtime via an intuitive modal interface.
 - 🧠 **Web Search Augmentation**: 
@@ -185,6 +186,30 @@ Why is the sky blue?
 ## System Prompt
 You are a scientific expert specializing in atmospheric physics. Explain concepts clearly and precisely, using technical language where appropriate.
 ```
+
+## ▶️ Direct Prompt Execution
+
+The Run button feature lets you execute prompts directly from the library:
+
+1. **One-Click Execution**: Run prompts directly from the library view without opening them in tabs.
+2. **Parameter Handling**: 
+   - For prompts with parameters, a modal appears to collect parameter values.
+   - Previously entered parameter values are remembered for convenience.
+3. **Execution Feedback**: 
+   - Visual loading indicator appears during prompt execution.
+   - Clear feedback on execution status.
+4. **Results Display**:
+   - Results open in a modal with two tabs:
+     - Text: Raw output with proper syntax highlighting
+     - Markdown: Rendered markdown for better readability
+   - Copy to clipboard button for easy sharing
+   - Export as markdown file option
+5. **Web Search Integration**:
+   - When web search is enabled in the sidebar, the Run button uses the integrated web search capability.
+   - Makes prompts more powerful with up-to-date information from the web.
+   - Works with any model, no function calling required.
+
+This feature streamlines the workflow for prompt engineers who frequently test and iterate on prompts.
 
 ## 📎 File Attachments
 

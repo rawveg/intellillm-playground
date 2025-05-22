@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
-import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, Github, Import } from 'lucide-react'
+import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, Github, Import, Play } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 import { FolderBrowserModal } from './folder-browser-modal'
 import { DeleteConfirmationModal } from './delete-confirmation-modal'
 import { ImportGistModal } from './import-gist-modal'
 import { ExportGistModal } from './export-gist-modal'
+import { ResultsModal } from './results-modal'
+import { ParameterModal } from './parameter-modal'
+import { extractParameters, replaceParameters, ParameterInfo } from '@/lib/parameterUtils'
+import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -42,6 +46,15 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const [showExportGistModal, setShowExportGistModal] = useState(false)
   const [exportPromptPath, setExportPromptPath] = useState('')
   const [exportPromptName, setExportPromptName] = useState('')
+
+  // Prompt execution states
+  const [showResultsModal, setShowResultsModal] = useState(false)
+  const [promptResult, setPromptResult] = useState('')
+  const [isExecutingPrompt, setIsExecutingPrompt] = useState(false)
+  const [showParamModal, setShowParamModal] = useState(false)
+  const [activeParameters, setActiveParameters] = useState<ParameterInfo[]>([])
+  const [currentExecutingPrompt, setCurrentExecutingPrompt] = useState<PromptFile | null>(null)
+  const [executedPromptName, setExecutedPromptName] = useState('')
 
   useEffect(() => {
     loadContents(currentPath)
@@ -286,6 +299,253 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     setExportPromptPath(promptPath)
     setExportPromptName(promptName)
     setShowExportGistModal(true)
+  }
+
+  // Execute a prompt directly from the library
+  const runPrompt = async (itemPath: string) => {
+    try {
+      setIsExecutingPrompt(true)
+      
+      // Load the prompt
+      const encodedPath = encodeURIComponent(itemPath)
+      const response = await fetch(`/api/prompts/${encodedPath}`)
+      const prompt = await response.json()
+      
+      // Store the current prompt being executed
+      setCurrentExecutingPrompt(prompt)
+      setExecutedPromptName(prompt.name)
+      
+      // Check for parameters in both the main prompt and system prompt
+      const mainPromptParameters = extractParameters(prompt.content)
+      const systemPromptParameters = prompt.systemPrompt 
+        ? extractParameters(prompt.systemPrompt) 
+        : []
+      
+      // Combine parameters from both prompts, removing duplicates by name
+      const allParameters = [...mainPromptParameters]
+      
+      // Add system prompt parameters if they don't already exist in main prompt
+      systemPromptParameters.forEach(sysParam => {
+        if (!allParameters.some(param => param.name === sysParam.name)) {
+          allParameters.push(sysParam)
+        }
+      })
+      
+      if (allParameters.length > 0) {
+        // If parameters exist, show the modal
+        setActiveParameters(allParameters)
+        setShowParamModal(true)
+        return
+      }
+      
+      // If no parameters, proceed with the normal flow
+      await executePrompt(prompt.content, prompt.metadata, prompt.systemPrompt)
+    } catch (err) {
+      setError('Failed to run prompt')
+      setIsExecutingPrompt(false)
+    }
+  }
+
+  // Execute the prompt with parameter values
+  const executePromptWithParams = async (paramValues: Record<string, string>) => {
+    if (!currentExecutingPrompt) return
+    
+    try {
+      // Replace parameters with their values in the main prompt
+      const processedContent = replaceParameters(currentExecutingPrompt.content, paramValues)
+      
+      // Also replace parameters in the system prompt if it exists
+      let processedSystemPrompt = currentExecutingPrompt.systemPrompt
+      if (processedSystemPrompt) {
+        processedSystemPrompt = replaceParameters(processedSystemPrompt, paramValues)
+      }
+      
+      // Store the prompt name for the results modal
+      setExecutedPromptName(currentExecutingPrompt.name)
+      
+      // Hide the parameter modal
+      setShowParamModal(false)
+      
+      // Execute the prompt with the processed content
+      await executePrompt(processedContent, currentExecutingPrompt.metadata, processedSystemPrompt)
+    } catch (err) {
+      setError('Failed to execute prompt with parameters')
+      setIsExecutingPrompt(false)
+    }
+  }
+  
+  // Actual prompt execution logic
+  const executePrompt = async (promptContent: string, metadata: any, systemPrompt?: string) => {
+    try {
+      // Get the stored API key and model config
+      const openrouterApiKey = localStorage.getItem('openrouter_api_key')
+      const modelConfigString = localStorage.getItem('model_config')
+      const modelConfig = modelConfigString ? JSON.parse(modelConfigString) : {}
+      
+      // Use the model from the prompt metadata or the selected model from localStorage
+      const model = metadata?.model || localStorage.getItem('selected_model') || 'openai/gpt-3.5-turbo'
+      
+      // Prepare the request
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (openrouterApiKey) {
+        headers['Authorization'] = 'Bearer ' + openrouterApiKey
+        headers['HTTP-Referer'] = typeof window !== 'undefined' ? window.location.host : 'localhost'
+        headers['X-Title'] = typeof window !== 'undefined' ? document.title.slice(0, 30) : 'Intellillm Playground'
+      }
+      
+      const messages = []
+
+      // Check for web search enabled
+      let searchResultsContext = '';
+      const isWebSearchEnabled = localStorage.getItem('web_search_enabled') === 'true';
+
+      if (isWebSearchEnabled && promptContent.trim() !== '') {
+        try {
+          const modelMaxContextTokens = getModelContextLimit({ context_length: 16000 });
+          
+          // Use the processed content with parameters replaced for token estimation
+          const userPromptTokens = estimateTokens(promptContent);
+          const existingSystemPromptTokens = estimateTokens(systemPrompt || '');
+          const basePromptTokens = userPromptTokens + existingSystemPromptTokens;
+
+          const RESPONSE_AND_OVERHEAD_BUFFER = Math.floor(modelMaxContextTokens * 0.25); 
+          const SEARCH_CONTEXT_TOKEN_BUDGET = modelMaxContextTokens - basePromptTokens - RESPONSE_AND_OVERHEAD_BUFFER;
+
+          if (SEARCH_CONTEXT_TOKEN_BUDGET > 100) { // Only search if there's a reasonable budget
+            let searchQueryForDDG = promptContent; // Use processed content with parameters replaced
+
+            try {
+              if (!openrouterApiKey) {
+                console.warn('[WebSearch] OpenRouter API key not found. Falling back to full prompt for search.');
+              } else {
+                const metaPromptForSearchQuery = `Based on the following user prompt, extract a concise set of search terms that would be effective for finding relevant information on the web. Focus on the core subject or topic the user wants to address. Return only the search terms, ideally 3-7 words. Do not add any commentary or explanation. Just return the search terms.
+
+User Prompt:
+"""
+${promptContent}
+"""
+
+Search Terms:`;
+
+                const ancillaryMessages = [{ role: 'user', content: metaPromptForSearchQuery }];
+                
+                console.log(`[WebSearch] Ancillary LLM call to ${model} for search query generation.`);
+                const ancillaryResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': 'Bearer ' + openrouterApiKey,
+                    'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
+                    'X-Title': typeof window !== 'undefined' ? document.title.slice(0,30) : 'Intellillm Playground',
+                  },
+                  body: JSON.stringify({
+                    model: model,
+                    messages: ancillaryMessages,
+                    ...modelConfig,
+                    max_tokens: 20, // Limit tokens for search query generation
+                    temperature: 0.2, // Lower temperature for more factual search terms
+                  }),
+                });
+
+                if (ancillaryResponse.ok) {
+                  const ancillaryData = await ancillaryResponse.json();
+                  const llmGeneratedQuery = ancillaryData.choices?.[0]?.message?.content?.trim();
+                  if (llmGeneratedQuery) {
+                    searchQueryForDDG = llmGeneratedQuery;
+                    console.log('[WebSearch] LLM generated search query:', searchQueryForDDG);
+                  } else {
+                    console.warn('[WebSearch] LLM did not return a valid search query. Falling back to full prompt.');
+                  }
+                } else {
+                  console.warn(`[WebSearch] Ancillary LLM call failed. Falling back to full prompt.`);
+                }
+              }
+            } catch (e) {
+              console.error('[WebSearch] Error during ancillary LLM call for search query:', e);
+              // Fallback to original prompt content is already default
+            }
+
+            console.log(`[WebSearch] Final Budget: ${SEARCH_CONTEXT_TOKEN_BUDGET} tokens. Query for DDG: "${searchQueryForDDG}"`);
+            const searchApiResponse = await fetch('/api/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: searchQueryForDDG, limit: 5, backend: 'api' }), 
+            });
+
+            if (searchApiResponse.ok) {
+              const searchData = await searchApiResponse.json();
+              
+              const fetchedSnippets = searchData?.searchResultsArray;
+
+              if (Array.isArray(fetchedSnippets) && fetchedSnippets.length > 0) {
+                const webSearchSnippets = fetchedSnippets.map((result, index) => {
+                  return `[${index + 1}] "${result.text}" (Source: ${result.url})`;
+                }).join('\n\n');
+
+                searchResultsContext = `\n\nHere are some recent web search results that may help inform your response:\n\n${webSearchSnippets}\n\n`;
+              }
+            }
+          }
+        } catch (searchError) {
+          console.error('[WebSearch] Error during web search:', searchError);
+          // Continue without search results
+        }
+      }
+      
+      // Add system message if present
+      if (systemPrompt && systemPrompt.trim() !== '') {
+        messages.push({
+          role: 'system',
+          content: systemPrompt
+        })
+      }
+      
+      // Add the user message with search results if available
+      messages.push({
+        role: 'user',
+        content: promptContent + (searchResultsContext ? searchResultsContext : '')
+      })
+      
+      // Execute the API call
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages,
+          ...modelConfig
+        })
+      })
+      
+      const data = await response.json()
+      
+      let result: string = ''
+      
+      // Extract the result based on the response format
+      if (data.choices && data.choices[0]?.message?.content) {
+        result = data.choices[0].message.content
+      } else if (data.message?.content) {
+        result = data.message.content
+      } else if (data.content) {
+        result = data.content
+      } else if (data.error) {
+        result = `Error: ${data.error.message || 'Unknown error'}`
+      } else {
+        result = 'Unknown response format'
+      }
+      
+      // Display the result in the modal
+      setPromptResult(result)
+      setShowResultsModal(true)
+    } catch (error) {
+      setPromptResult(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`)
+      setShowResultsModal(true)
+    } finally {
+      setIsExecutingPrompt(false)
+      setCurrentExecutingPrompt(null)
+    }
   }
 
   const handleCreateFolder = async () => {
@@ -693,17 +953,36 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 </div>
                 <div className="flex items-center">
                   {!item.isDirectory && (
-                    <button
-                      className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
-                      onClick={() => openExportGistModal(item.path, item.name)}
-                      title="Export to GitHub Gist"
-                    >
-                      <Github className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        className="p-1 hover:text-green-500 dark:hover:text-green-400 mr-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          runPrompt(item.path)
+                        }}
+                        title="Run prompt"
+                        disabled={isExecutingPrompt}
+                      >
+                        <Play className="w-4 h-4" />
+                      </button>
+                      <button
+                        className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openExportGistModal(item.path, item.name)
+                        }}
+                        title="Export to GitHub Gist"
+                      >
+                        <Github className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
                   <button
                     className="p-1 hover:text-red-500 dark:hover:text-red-400"
-                    onClick={() => deleteItem(item.path, item.isDirectory)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteItem(item.path, item.isDirectory)
+                    }}
                     title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -754,6 +1033,40 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           onExport={handleExportGist}
           onCancel={() => setShowExportGistModal(false)}
         />
+      )}
+
+      {/* Prompt Results Modal */}
+      {showResultsModal && (
+        <ResultsModal
+          result={promptResult}
+          onClose={() => setShowResultsModal(false)}
+          title={`Results: ${executedPromptName || 'Prompt'}`}
+        />
+      )}
+
+      {/* Parameter Modal */}
+      {showParamModal && (
+        <ParameterModal
+          parameters={activeParameters}
+          tabId={currentExecutingPrompt?.path || ''}
+          tabName={currentExecutingPrompt?.name || 'Prompt'}
+          onSubmit={executePromptWithParams}
+          onCancel={() => {
+            setShowParamModal(false)
+            setCurrentExecutingPrompt(null)
+            setIsExecutingPrompt(false)
+          }}
+        />
+      )}
+
+      {/* Global Loading Spinner */}
+      {isExecutingPrompt && !showParamModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 flex flex-col items-center">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-lg font-medium">Executing prompt...</p>
+          </div>
+        </div>
       )}
     </div>
   )

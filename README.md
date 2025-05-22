@@ -23,6 +23,7 @@
 - 🖥️ **Modern UI**: Multi-tab prompt editing, collapsible system prompt editor, and theme support (light/dark/system).
 - 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration.
 - 📂 **Prompt Management**: Import/export prompts (with metadata), folder organization, drag-and-drop file management, filtering/sorting controls, persistent model settings, YAML frontmatter support, and GitHub Gist integration.
+- 📎 **File Attachments**: Upload images (PNG, JPEG, WebP) and documents (PDF) to include with your prompts.
 - 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax, which can be filled in at runtime via an intuitive modal interface.
 - 🧠 **Web Search Augmentation**: 
   - Toggleable real-time web search via DuckDuckGo, with search terms auto-extracted by an LLM meta-prompt.
@@ -184,6 +185,29 @@ Why is the sky blue?
 ## System Prompt
 You are a scientific expert specializing in atmospheric physics. Explain concepts clearly and precisely, using technical language where appropriate.
 ```
+
+## 📎 File Attachments
+
+IntelliLLM Playground supports uploading files alongside your prompts:
+
+### Supported File Types
+
+- **Images**: PNG, JPEG, WebP
+- **Documents**: PDF
+
+### Usage
+
+1. Click the image or document icon in the prompt editor toolbar
+2. Select a file from your device
+3. The file will be attached to your prompt and displayed below the editor
+4. You can remove attached files by clicking the "X" button next to the file name
+5. Files are included in API requests to the LLM
+
+### Technical Implementation
+
+- Images are sent as base64-encoded data in the `messages` array with type `image_url`
+- Documents are included with type `file` in the appropriate format
+- The UI clearly indicates which files are attached to each prompt
 
 ### Prompt Parameters
 

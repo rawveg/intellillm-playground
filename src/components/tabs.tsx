@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Editor } from './editor'
-import { Plus, X, Save, FileDown, Upload, Play, Loader2, Image, FileText } from 'lucide-react'
+import { Plus, X, Save, FileDown, Upload, Play, Loader2, Image, FileText, Copy } from 'lucide-react'
 import * as YAML from 'yaml'
 import { PromptLibrary } from './prompt-library'
 import * as RadixTabs from '@radix-ui/react-tabs';
@@ -75,6 +75,9 @@ export function Tabs() {
   // Save As modal state
   const [showSaveAsModal, setShowSaveAsModal] = useState(false);
 
+  // Copy feedback state
+  const [showCopyFeedback, setShowCopyFeedback] = useState(false);
+
   // Update model and settings when active tab changes
   const updateModelSettings = (tabId: string) => {
     const activePrompt = tabs.find(tab => tab.id === tabId)
@@ -135,6 +138,21 @@ export function Tabs() {
     if (activeTab === id) {
       setActiveTab(newTabs[0].id)
     }
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        // Show feedback
+        setShowCopyFeedback(true)
+        // Hide feedback after 2 seconds
+        setTimeout(() => {
+          setShowCopyFeedback(false)
+        }, 2000)
+      })
+      .catch(err => {
+        console.error('Failed to copy text: ', err)
+      })
   }
 
   const updateTabContent = (id: string, content: string) => {
@@ -1121,7 +1139,7 @@ Content: ${snippet.text}
               </div>
             </div>
             {activePrompt?.result && (
-              <div className="h-1/2 border-t flex flex-col"> 
+              <div className="h-1/2 border-t flex flex-col relative"> 
                 <RadixTabs.Root 
                   value={activeResultView} 
                   onValueChange={(value) => setActiveResultView(value as 'text' | 'markdown')}
@@ -1153,6 +1171,22 @@ Content: ${snippet.text}
                     <ReactMarkdown className="markdown-content">{activePrompt.result || ''}</ReactMarkdown>
                   </RadixTabs.Content>
                 </RadixTabs.Root>
+                
+                {/* Copy to clipboard button */}
+                <div className="absolute bottom-4 right-4 opacity-60 hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => copyToClipboard(activePrompt.result || '')}
+                    className="p-2 bg-gray-200 dark:bg-gray-700 rounded-full shadow-sm"
+                    title="Copy to clipboard"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                  {showCopyFeedback && (
+                    <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-black text-white text-xs rounded shadow-md whitespace-nowrap">
+                      Copied to clipboard
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

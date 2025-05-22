@@ -79,8 +79,8 @@ export function ResultsModal({ result, onClose, title = "Prompt Results" }: Resu
               </RadixTabs.Trigger>
             </RadixTabs.List>
 
-            <RadixTabs.Content value="text" className="flex-1 overflow-auto h-full"> 
-              <div className="p-4">
+            <RadixTabs.Content value="text" className="flex-1 overflow-hidden h-full"> 
+              <div className="h-full">
                 <Editor
                   value={result}
                   onChange={() => {}} // Read-only

@@ -8,6 +8,7 @@ import { ExportGistModal } from './export-gist-modal'
 import { ResultsModal } from './results-modal'
 import { ParameterModal } from './parameter-modal'
 import { extractParameters, replaceParameters, ParameterInfo } from '@/lib/parameterUtils'
+import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -391,6 +392,102 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
       }
       
       const messages = []
+
+      // Check for web search enabled
+      let searchResultsContext = '';
+      const isWebSearchEnabled = localStorage.getItem('web_search_enabled') === 'true';
+
+      if (isWebSearchEnabled && promptContent.trim() !== '') {
+        try {
+          const modelMaxContextTokens = getModelContextLimit({ context_length: 16000 });
+          
+          // Use the processed content with parameters replaced for token estimation
+          const userPromptTokens = estimateTokens(promptContent);
+          const existingSystemPromptTokens = estimateTokens(systemPrompt || '');
+          const basePromptTokens = userPromptTokens + existingSystemPromptTokens;
+
+          const RESPONSE_AND_OVERHEAD_BUFFER = Math.floor(modelMaxContextTokens * 0.25); 
+          const SEARCH_CONTEXT_TOKEN_BUDGET = modelMaxContextTokens - basePromptTokens - RESPONSE_AND_OVERHEAD_BUFFER;
+
+          if (SEARCH_CONTEXT_TOKEN_BUDGET > 100) { // Only search if there's a reasonable budget
+            let searchQueryForDDG = promptContent; // Use processed content with parameters replaced
+
+            try {
+              if (!openrouterApiKey) {
+                console.warn('[WebSearch] OpenRouter API key not found. Falling back to full prompt for search.');
+              } else {
+                const metaPromptForSearchQuery = `Based on the following user prompt, extract a concise set of search terms that would be effective for finding relevant information on the web. Focus on the core subject or topic the user wants to address. Return only the search terms, ideally 3-7 words. Do not add any commentary or explanation. Just return the search terms.
+
+User Prompt:
+"""
+${promptContent}
+"""
+
+Search Terms:`;
+
+                const ancillaryMessages = [{ role: 'user', content: metaPromptForSearchQuery }];
+                
+                console.log(`[WebSearch] Ancillary LLM call to ${model} for search query generation.`);
+                const ancillaryResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': 'Bearer ' + openrouterApiKey,
+                    'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
+                    'X-Title': typeof window !== 'undefined' ? document.title.slice(0,30) : 'Intellillm Playground',
+                  },
+                  body: JSON.stringify({
+                    model: model,
+                    messages: ancillaryMessages,
+                    ...modelConfig,
+                    max_tokens: 20, // Limit tokens for search query generation
+                    temperature: 0.2, // Lower temperature for more factual search terms
+                  }),
+                });
+
+                if (ancillaryResponse.ok) {
+                  const ancillaryData = await ancillaryResponse.json();
+                  const llmGeneratedQuery = ancillaryData.choices?.[0]?.message?.content?.trim();
+                  if (llmGeneratedQuery) {
+                    searchQueryForDDG = llmGeneratedQuery;
+                    console.log('[WebSearch] LLM generated search query:', searchQueryForDDG);
+                  } else {
+                    console.warn('[WebSearch] LLM did not return a valid search query. Falling back to full prompt.');
+                  }
+                } else {
+                  console.warn(`[WebSearch] Ancillary LLM call failed. Falling back to full prompt.`);
+                }
+              }
+            } catch (e) {
+              console.error('[WebSearch] Error during ancillary LLM call for search query:', e);
+              // Fallback to original prompt content is already default
+            }
+
+            console.log(`[WebSearch] Final Budget: ${SEARCH_CONTEXT_TOKEN_BUDGET} tokens. Query for DDG: "${searchQueryForDDG}"`);
+            const searchApiResponse = await fetch('/api/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: searchQueryForDDG, limit: 5, backend: 'api' }), 
+            });
+
+            if (searchApiResponse.ok) {
+              const searchData = await searchApiResponse.json();
+              
+              const fetchedSnippets = searchData?.searchResultsArray;
+
+              if (Array.isArray(fetchedSnippets) && fetchedSnippets.length > 0) {
+                const webSearchSnippets = fetchedSnippets.map((result, index) => {
+                  return `[${index + 1}] "${result.text}" (Source: ${result.url})`;
+                }).join('\n\n');
+
+                searchResultsContext = `\n\nHere are some recent web search results that may help inform your response:\n\n${webSearchSnippets}\n\n`;
+              }
+            }
+          }
+        } catch (searchError) {
+          console.error('[WebSearch] Error during web search:', searchError);
+          // Continue without search results
+        }
+      }
       
       // Add system message if present
       if (systemPrompt && systemPrompt.trim() !== '') {
@@ -400,10 +497,10 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
         })
       }
       
-      // Add the user message
+      // Add the user message with search results if available
       messages.push({
         role: 'user',
-        content: promptContent
+        content: promptContent + (searchResultsContext ? searchResultsContext : '')
       })
       
       // Execute the API call
@@ -861,11 +958,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                         title="Run prompt"
                         disabled={isExecutingPrompt}
                       >
-                        {isExecutingPrompt && currentExecutingPrompt?.path === item.path ? (
-                          <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Play className="w-4 h-4" />
-                        )}
+                        <Play className="w-4 h-4" />
                       </button>
                       <button
                         className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
@@ -942,6 +1035,7 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
         <ResultsModal
           result={promptResult}
           onClose={() => setShowResultsModal(false)}
+          title={`Results: ${currentExecutingPrompt?.name || 'Prompt'}`}
         />
       )}
 
@@ -958,6 +1052,16 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
             setIsExecutingPrompt(false)
           }}
         />
+      )}
+
+      {/* Global Loading Spinner */}
+      {isExecutingPrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 flex flex-col items-center">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-lg font-medium">Executing prompt...</p>
+          </div>
+        </div>
       )}
     </div>
   )

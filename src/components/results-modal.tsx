@@ -9,9 +9,10 @@ import * as RadixTabs from '@radix-ui/react-tabs'
 interface ResultsModalProps {
   result: string
   onClose: () => void
+  title?: string
 }
 
-export function ResultsModal({ result, onClose }: ResultsModalProps) {
+export function ResultsModal({ result, onClose, title = "Prompt Results" }: ResultsModalProps) {
   const [activeResultView, setActiveResultView] = useState<'text' | 'markdown'>('text')
   const [showCopyFeedback, setShowCopyFeedback] = useState(false)
 
@@ -47,7 +48,7 @@ export function ResultsModal({ result, onClose }: ResultsModalProps) {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
-          <h2 className="text-lg font-semibold">Prompt Results</h2>
+          <h2 className="text-lg font-semibold">{title}</h2>
           <button 
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
@@ -79,15 +80,17 @@ export function ResultsModal({ result, onClose }: ResultsModalProps) {
             </RadixTabs.List>
 
             <RadixTabs.Content value="text" className="flex-1 overflow-auto h-full"> 
-              <Editor
-                value={result}
-                onChange={() => {}} // Read-only
-                readOnly
-                language={result.startsWith('{') ? 'json' : 'markdown'}
-              />
+              <div className="p-4">
+                <Editor
+                  value={result}
+                  onChange={() => {}} // Read-only
+                  readOnly
+                  language={result.startsWith('{') ? 'json' : 'markdown'}
+                />
+              </div>
             </RadixTabs.Content>
 
-            <RadixTabs.Content value="markdown" className="flex-1 overflow-auto p-4 bg-background h-full">
+            <RadixTabs.Content value="markdown" className="flex-1 overflow-auto p-6 bg-background h-full">
               <ReactMarkdown className="markdown-content">{result || ''}</ReactMarkdown>
             </RadixTabs.Content>
           </RadixTabs.Root>

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, Github, Import } from 'lucide-react'
+import { FileText, Trash2, Folder, ChevronLeft, Plus, FolderPlus, Home, Search, ArrowUpDown, Check, X, PanelTop, Move, Github, Import, Play } from 'lucide-react'
 import type { PromptFile } from '@/lib/promptUtils'
 import { FolderBrowserModal } from './folder-browser-modal'
 import { DeleteConfirmationModal } from './delete-confirmation-modal'
 import { ImportGistModal } from './import-gist-modal'
 import { ExportGistModal } from './export-gist-modal'
+import { ResultsModal } from './results-modal'
+import { ParameterModal } from './parameter-modal'
+import { extractParameters, replaceParameters, ParameterInfo } from '@/lib/parameterUtils'
 
 interface PromptLibraryProps {
   onPromptSelect: (prompt: PromptFile | PromptFile[]) => void
@@ -42,6 +45,14 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
   const [showExportGistModal, setShowExportGistModal] = useState(false)
   const [exportPromptPath, setExportPromptPath] = useState('')
   const [exportPromptName, setExportPromptName] = useState('')
+
+  // Prompt execution states
+  const [showResultsModal, setShowResultsModal] = useState(false)
+  const [promptResult, setPromptResult] = useState('')
+  const [isExecutingPrompt, setIsExecutingPrompt] = useState(false)
+  const [showParamModal, setShowParamModal] = useState(false)
+  const [activeParameters, setActiveParameters] = useState<ParameterInfo[]>([])
+  const [currentExecutingPrompt, setCurrentExecutingPrompt] = useState<PromptFile | null>(null)
 
   useEffect(() => {
     loadContents(currentPath)
@@ -286,6 +297,152 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
     setExportPromptPath(promptPath)
     setExportPromptName(promptName)
     setShowExportGistModal(true)
+  }
+
+  // Execute a prompt directly from the library
+  const runPrompt = async (itemPath: string) => {
+    try {
+      setIsExecutingPrompt(true)
+      
+      // Load the prompt
+      const encodedPath = encodeURIComponent(itemPath)
+      const response = await fetch(`/api/prompts/${encodedPath}`)
+      const prompt = await response.json()
+      
+      // Store the current prompt being executed
+      setCurrentExecutingPrompt(prompt)
+      
+      // Check for parameters in both the main prompt and system prompt
+      const mainPromptParameters = extractParameters(prompt.content)
+      const systemPromptParameters = prompt.systemPrompt 
+        ? extractParameters(prompt.systemPrompt) 
+        : []
+      
+      // Combine parameters from both prompts, removing duplicates by name
+      const allParameters = [...mainPromptParameters]
+      
+      // Add system prompt parameters if they don't already exist in main prompt
+      systemPromptParameters.forEach(sysParam => {
+        if (!allParameters.some(param => param.name === sysParam.name)) {
+          allParameters.push(sysParam)
+        }
+      })
+      
+      if (allParameters.length > 0) {
+        // If parameters exist, show the modal
+        setActiveParameters(allParameters)
+        setShowParamModal(true)
+        return
+      }
+      
+      // If no parameters, proceed with the normal flow
+      await executePrompt(prompt.content, prompt.metadata, prompt.systemPrompt)
+    } catch (err) {
+      setError('Failed to run prompt')
+      setIsExecutingPrompt(false)
+    }
+  }
+
+  // Execute the prompt with parameter values
+  const executePromptWithParams = async (paramValues: Record<string, string>) => {
+    if (!currentExecutingPrompt) return
+    
+    try {
+      // Replace parameters with their values in the main prompt
+      const processedContent = replaceParameters(currentExecutingPrompt.content, paramValues)
+      
+      // Also replace parameters in the system prompt if it exists
+      let processedSystemPrompt = currentExecutingPrompt.systemPrompt
+      if (processedSystemPrompt) {
+        processedSystemPrompt = replaceParameters(processedSystemPrompt, paramValues)
+      }
+      
+      // Hide the parameter modal
+      setShowParamModal(false)
+      
+      // Execute the prompt with the processed content
+      await executePrompt(processedContent, currentExecutingPrompt.metadata, processedSystemPrompt)
+    } catch (err) {
+      setError('Failed to execute prompt with parameters')
+      setIsExecutingPrompt(false)
+    }
+  }
+  
+  // Actual prompt execution logic
+  const executePrompt = async (promptContent: string, metadata: any, systemPrompt?: string) => {
+    try {
+      // Get the stored API key and model config
+      const openrouterApiKey = localStorage.getItem('openrouter_api_key')
+      const modelConfigString = localStorage.getItem('model_config')
+      const modelConfig = modelConfigString ? JSON.parse(modelConfigString) : {}
+      
+      // Use the model from the prompt metadata or the selected model from localStorage
+      const model = metadata?.model || localStorage.getItem('selected_model') || 'openai/gpt-3.5-turbo'
+      
+      // Prepare the request
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (openrouterApiKey) {
+        headers['Authorization'] = `******        headers['HTTP-Referer'] = typeof window !== 'undefined' ? window.location.host : 'localhost'
+        headers['X-Title'] = typeof window !== 'undefined' ? document.title.slice(0, 30) : 'Intellillm Playground'
+      }
+      
+      const messages = []
+      
+      // Add system message if present
+      if (systemPrompt && systemPrompt.trim() !== '') {
+        messages.push({
+          role: 'system',
+          content: systemPrompt
+        })
+      }
+      
+      // Add the user message
+      messages.push({
+        role: 'user',
+        content: promptContent
+      })
+      
+      // Execute the API call
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages,
+          ...modelConfig
+        })
+      })
+      
+      const data = await response.json()
+      
+      let result: string = ''
+      
+      // Extract the result based on the response format
+      if (data.choices && data.choices[0]?.message?.content) {
+        result = data.choices[0].message.content
+      } else if (data.message?.content) {
+        result = data.message.content
+      } else if (data.content) {
+        result = data.content
+      } else if (data.error) {
+        result = `Error: ${data.error.message || 'Unknown error'}`
+      } else {
+        result = 'Unknown response format'
+      }
+      
+      // Display the result in the modal
+      setPromptResult(result)
+      setShowResultsModal(true)
+    } catch (error) {
+      setPromptResult(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`)
+      setShowResultsModal(true)
+    } finally {
+      setIsExecutingPrompt(false)
+      setCurrentExecutingPrompt(null)
+    }
   }
 
   const handleCreateFolder = async () => {
@@ -693,17 +850,40 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
                 </div>
                 <div className="flex items-center">
                   {!item.isDirectory && (
-                    <button
-                      className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
-                      onClick={() => openExportGistModal(item.path, item.name)}
-                      title="Export to GitHub Gist"
-                    >
-                      <Github className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        className="p-1 hover:text-green-500 dark:hover:text-green-400 mr-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          runPrompt(item.path)
+                        }}
+                        title="Run prompt"
+                        disabled={isExecutingPrompt}
+                      >
+                        {isExecutingPrompt ? (
+                          <span className="animate-spin">↻</span>
+                        ) : (
+                          <Play className="w-4 h-4" />
+                        )}
+                      </button>
+                      <button
+                        className="p-1 hover:text-blue-500 dark:hover:text-blue-400 mr-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openExportGistModal(item.path, item.name)
+                        }}
+                        title="Export to GitHub Gist"
+                      >
+                        <Github className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
                   <button
                     className="p-1 hover:text-red-500 dark:hover:text-red-400"
-                    onClick={() => deleteItem(item.path, item.isDirectory)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteItem(item.path, item.isDirectory)
+                    }}
                     title={`Delete ${item.isDirectory ? 'folder' : 'prompt'}`}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -753,6 +933,29 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           promptPath={exportPromptPath}
           onExport={handleExportGist}
           onCancel={() => setShowExportGistModal(false)}
+        />
+      )}
+
+      {/* Prompt Results Modal */}
+      {showResultsModal && (
+        <ResultsModal
+          result={promptResult}
+          onClose={() => setShowResultsModal(false)}
+        />
+      )}
+
+      {/* Parameter Modal */}
+      {showParamModal && (
+        <ParameterModal
+          parameters={activeParameters}
+          tabId={currentExecutingPrompt?.path || ''}
+          tabName={currentExecutingPrompt?.name || 'Prompt'}
+          onSubmit={executePromptWithParams}
+          onCancel={() => {
+            setShowParamModal(false)
+            setCurrentExecutingPrompt(null)
+            setIsExecutingPrompt(false)
+          }}
         />
       )}
     </div>

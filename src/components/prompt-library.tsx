@@ -385,7 +385,8 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
       }
       
       if (openrouterApiKey) {
-        headers['Authorization'] = `******        headers['HTTP-Referer'] = typeof window !== 'undefined' ? window.location.host : 'localhost'
+        headers['Authorization'] = 'Bearer ' + openrouterApiKey
+        headers['HTTP-Referer'] = typeof window !== 'undefined' ? window.location.host : 'localhost'
         headers['X-Title'] = typeof window !== 'undefined' ? document.title.slice(0, 30) : 'Intellillm Playground'
       }
       
@@ -415,6 +416,35 @@ export function PromptLibrary({ onPromptSelect }: PromptLibraryProps) {
           ...modelConfig
         })
       })
+      
+      const data = await response.json()
+      
+      let result: string = ''
+      
+      // Extract the result based on the response format
+      if (data.choices && data.choices[0]?.message?.content) {
+        result = data.choices[0].message.content
+      } else if (data.message?.content) {
+        result = data.message.content
+      } else if (data.content) {
+        result = data.content
+      } else if (data.error) {
+        result = `Error: ${data.error.message || 'Unknown error'}`
+      } else {
+        result = 'Unknown response format'
+      }
+      
+      // Display the result in the modal
+      setPromptResult(result)
+      setShowResultsModal(true)
+    } catch (error) {
+      setPromptResult(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`)
+      setShowResultsModal(true)
+    } finally {
+      setIsExecutingPrompt(false)
+      setCurrentExecutingPrompt(null)
+    }
+  }
       
       const data = await response.json()
       

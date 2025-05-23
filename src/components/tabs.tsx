@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Editor } from './editor'
-import { Plus, X, Save, FileDown, Upload, Play, Loader2, Image, FileText, Copy } from 'lucide-react'
+import { Plus, X, Save, FileDown, Upload, Play, Loader2, Image, FileText, Copy, Sparkles } from 'lucide-react'
 import * as YAML from 'yaml'
 import { PromptLibrary } from './prompt-library'
 import * as RadixTabs from '@radix-ui/react-tabs';
@@ -11,6 +11,7 @@ import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils';
 import { extractParameters, replaceParameters, ParameterInfo, extractParameterNames } from '@/lib/parameterUtils';
 import { ParameterModal } from './parameter-modal';
 import { SaveAsModal } from './save-as-modal';
+import { PromptAugmentationModal } from './prompt-augmentation-modal';
 import type { PromptFile } from '@/lib/promptUtils'
 
 interface Tab {
@@ -74,6 +75,9 @@ export function Tabs() {
   
   // Save As modal state
   const [showSaveAsModal, setShowSaveAsModal] = useState(false);
+
+  // Prompt augmentation modal state
+  const [showPromptAugmentationModal, setShowPromptAugmentationModal] = useState(false);
 
   // Copy feedback state
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
@@ -140,6 +144,38 @@ export function Tabs() {
     }
   }
 
+  // Prompt Augmentation handlers
+  const openPromptAugmentationModal = () => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt || activePrompt.isLibrary) return;
+    setShowPromptAugmentationModal(true);
+  };
+
+  const handleUserPromptAugmented = (augmentedPrompt: string) => {
+    setTabs(tabs.map(tab =>
+      tab.id === activeTab ? { ...tab, content: augmentedPrompt } : tab
+    ));
+    setShowPromptAugmentationModal(false);
+  };
+
+  const handleSystemPromptAugmented = (augmentedPrompt: string) => {
+    setTabs(tabs.map(tab =>
+      tab.id === activeTab ? { ...tab, systemPrompt: augmentedPrompt } : tab
+    ));
+    setShowPromptAugmentationModal(false);
+  };
+
+  const handleAllPromptsAugmented = (augmentedUserPrompt: string, augmentedSystemPrompt: string) => {
+    setTabs(tabs.map(tab =>
+      tab.id === activeTab ? { 
+        ...tab, 
+        content: augmentedUserPrompt,
+        systemPrompt: augmentedSystemPrompt
+      } : tab
+    ));
+    setShowPromptAugmentationModal(false);
+  };
+  
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
       .then(() => {
@@ -996,6 +1032,14 @@ Content: ${snippet.text}
           </button>
           <button
             className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+            onClick={openPromptAugmentationModal}
+            disabled={activePrompt?.isLibrary || activePrompt?.isLoading}
+            title="Augment Prompt"
+          >
+            <Sparkles className="w-5 h-5" />
+          </button>
+          <button
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
             onClick={uploadImageFile}
             title="Upload Image"
             disabled={activePrompt?.isLibrary}
@@ -1211,6 +1255,18 @@ Content: ${snippet.text}
           initialName={tabs.find(tab => tab.id === activeTab)?.name || ''}
           onSave={handleSaveAs}
           onCancel={() => setShowSaveAsModal(false)}
+        />
+      )}
+
+      {/* Prompt Augmentation Modal */}
+      {showPromptAugmentationModal && activePrompt && !activePrompt.isLibrary && (
+        <PromptAugmentationModal
+          userPrompt={activePrompt.content}
+          systemPrompt={activePrompt.systemPrompt}
+          onUserPromptAugmented={handleUserPromptAugmented}
+          onSystemPromptAugmented={handleSystemPromptAugmented}
+          onAllPromptsAugmented={handleAllPromptsAugmented}
+          onCancel={() => setShowPromptAugmentationModal(false)}
         />
       )}
     </div>

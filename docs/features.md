@@ -87,6 +87,18 @@ Prompt parameters transform your templates into interactive mini-applications. U
 
 See [Prompt Parameters](./parameters.md) for detailed information.
 
+## ✨ Prompt Augmentation
+
+The Prompt Augmentation feature uses AI to enhance your prompts:
+
+- **One-click enhancement** for both user and system prompts
+- **Three enhancement options**:
+  - User Prompt: Enhances only the main prompt
+  - System Prompt: Enhances only the system prompt
+  - All Prompts: Enhances both user and system prompts simultaneously
+- **Maintains prompt intent** while adding detail and clarity
+- **Uses the selected model** for consistent results
+
 ## 🧠 Web Search Augmentation
 
 A web search feature that works **without** function calling, allowing **any** model to use relevant results to enrich your prompt.

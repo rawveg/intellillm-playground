@@ -1066,12 +1066,13 @@ Content: ${snippet.text}
         throw new Error('Could not extract content from API response');
       }
 
-      // Update the tab with the augmented system prompt and also update processedSystemPrompt
+      // Update only the systemPrompt and DON'T update processedSystemPrompt
+      // This ensures web search functionality can properly add search context to the system prompt
       setTabs(tabs.map(tab =>
         tab.id === activeTab ? { 
           ...tab, 
           systemPrompt: augmentedSystemPrompt,
-          processedSystemPrompt: augmentedSystemPrompt
+          // Don't update processedSystemPrompt here so it can be properly handled in executePrompt
         } : tab
       ));
 

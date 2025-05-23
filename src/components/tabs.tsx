@@ -271,8 +271,15 @@ export function Tabs() {
       return;
     }
 
+    // Reset processedSystemPrompt to ensure web search works consistently
+    // This ensures we always start with a clean state for this execution
     setTabs(tabs.map(tab =>
-      tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab
+      tab.id === activeTab ? { 
+        ...tab, 
+        isLoading: true, 
+        result: undefined,
+        processedSystemPrompt: undefined // Clear any stale processedSystemPrompt
+      } : tab
     ));
 
     let searchResultsContext = '';
@@ -431,6 +438,15 @@ Content: ${snippet.text}
 
       // Use processedSystemPrompt if available (for parameter substitution), otherwise use the original systemPrompt
       let finalSystemPrompt = activePrompt.processedSystemPrompt || activePrompt.systemPrompt || '';
+      console.log('[executePrompt] System prompt state:', { 
+        hasSystemPrompt: !!activePrompt.systemPrompt,
+        hasProcessedSystemPrompt: !!activePrompt.processedSystemPrompt,
+        systemPromptLength: (activePrompt.systemPrompt || '').length,
+        processedSystemPromptLength: (activePrompt.processedSystemPrompt || '').length,
+        willUseProcessedSystemPrompt: !!activePrompt.processedSystemPrompt,
+        hasSearchResults: !!searchResultsContext
+      });
+      
       if (searchResultsContext) {
         if (finalSystemPrompt.trim() !== '') {
           // Prepend search results, then a separator, then the original system prompt
@@ -626,13 +642,15 @@ Content: ${snippet.text}
       const displayName = promptPath.split('/').pop() || promptPath
       
       // Update the tab with new name, path, and metadata
+      // Also ensure processedSystemPrompt is cleared to avoid stale state
       setTabs(tabs.map(tab =>
         tab.id === activeTab ? {
           ...tab,
           name: displayName,
           path: promptPath, // Store full path
           metadata,
-          systemPrompt: activePrompt.systemPrompt // Preserve system prompt
+          systemPrompt: activePrompt.systemPrompt, // Preserve system prompt
+          processedSystemPrompt: undefined // Ensure clean state for web search
         } : tab
       ))
 
@@ -833,7 +851,8 @@ Content: ${snippet.text}
             tab.id === existingTab.id ? { 
               ...tab, 
               metadata: p.metadata,
-              path: p.path // Store full path
+              path: p.path, // Store full path
+              processedSystemPrompt: undefined // Ensure clean state for web search
             } : tab
           ))
           tabIds.push(existingTab.id);
@@ -845,6 +864,7 @@ Content: ${snippet.text}
             name: displayName,
             content: p.content,
             systemPrompt: p.systemPrompt,
+            processedSystemPrompt: undefined, // Ensure clean state for web search
             metadata: p.metadata,
             path: p.path, // Store full path
           });
@@ -906,7 +926,8 @@ Content: ${snippet.text}
         tab.id === existingTab.id ? { 
           ...tab, 
           metadata: prompt.metadata,
-          path: prompt.path // Store full path
+          path: prompt.path, // Store full path
+          processedSystemPrompt: undefined // Ensure clean state for web search
         } : tab
       ))
       setActiveTab(existingTab.id)
@@ -918,6 +939,7 @@ Content: ${snippet.text}
         name: displayName,
         content: prompt.content,
         systemPrompt: prompt.systemPrompt,
+        processedSystemPrompt: undefined, // Ensure clean state for web search
         metadata: prompt.metadata,
         path: prompt.path, // Store full path
       }])
@@ -1066,13 +1088,13 @@ Content: ${snippet.text}
         throw new Error('Could not extract content from API response');
       }
 
-      // Update only the systemPrompt and DON'T update processedSystemPrompt
+      // Update only the systemPrompt and explicitly clear processedSystemPrompt
       // This ensures web search functionality can properly add search context to the system prompt
       setTabs(tabs.map(tab =>
         tab.id === activeTab ? { 
           ...tab, 
           systemPrompt: augmentedSystemPrompt,
-          // Don't update processedSystemPrompt here so it can be properly handled in executePrompt
+          processedSystemPrompt: undefined // Explicitly clear to avoid any stale state
         } : tab
       ));
 

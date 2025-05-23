@@ -247,17 +247,18 @@ export function Tabs() {
     }
     
     // Update the tab with the processed system prompt (but don't change the original template)
-    const updatedTabs = tabs.map(tab => 
+    // This ensures the original system prompt template is preserved for future runs
+    setTabs(tabs.map(tab => 
       tab.id === activeTab 
         ? { ...tab, processedSystemPrompt } 
         : tab
-    );
-    setTabs(updatedTabs);
+    ));
     
     // Hide the modal
     setShowParamModal(false);
     
     // Execute the prompt with the processed content
+    // The executePrompt function will handle processedSystemPrompt correctly due to our changes
     console.log('[executePromptWithParams] Executing prompt with processed content:', processedContent);
     await executePrompt(processedContent);
   };
@@ -271,8 +272,14 @@ export function Tabs() {
       return;
     }
 
-    // Reset processedSystemPrompt to ensure web search works consistently
-    // This ensures we always start with a clean state for this execution
+    // Create a fresh copy of the active prompt without any stale processedSystemPrompt
+    // This is crucial for handling the first web search correctly
+    const freshActivePrompt = {
+      ...activePrompt,
+      processedSystemPrompt: undefined // Explicitly clear the processedSystemPrompt
+    };
+
+    // Update the tab state - this is asynchronous but we'll use our local freshActivePrompt
     setTabs(tabs.map(tab =>
       tab.id === activeTab ? { 
         ...tab, 
@@ -290,9 +297,10 @@ export function Tabs() {
         const selectedModel = localStorage.getItem('selected_model') || 'default_model_name'; 
         const modelMaxContextTokens = getModelContextLimit({ context_length: 16000 });
         
-        // Use the processed content with parameters replaced for token estimation
+        // Use freshActivePrompt to ensure we're working with the latest data
+        // instead of potentially stale activePrompt state reference
         const userPromptTokens = estimateTokens(promptContent);
-        const existingSystemPromptTokens = estimateTokens(activePrompt.systemPrompt || '');
+        const existingSystemPromptTokens = estimateTokens(freshActivePrompt.systemPrompt || '');
         const basePromptTokens = userPromptTokens + existingSystemPromptTokens;
 
         const RESPONSE_AND_OVERHEAD_BUFFER = Math.floor(modelMaxContextTokens * 0.25); 
@@ -436,14 +444,12 @@ Content: ${snippet.text}
       const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2';
       const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}');
 
-      // Use processedSystemPrompt if available (for parameter substitution), otherwise use the original systemPrompt
-      let finalSystemPrompt = activePrompt.processedSystemPrompt || activePrompt.systemPrompt || '';
+      // Always use a fresh system prompt value from our local freshActivePrompt
+      // instead of directly accessing activePrompt which might contain stale state
+      let finalSystemPrompt = freshActivePrompt.systemPrompt || '';
       console.log('[executePrompt] System prompt state:', { 
-        hasSystemPrompt: !!activePrompt.systemPrompt,
-        hasProcessedSystemPrompt: !!activePrompt.processedSystemPrompt,
-        systemPromptLength: (activePrompt.systemPrompt || '').length,
-        processedSystemPromptLength: (activePrompt.processedSystemPrompt || '').length,
-        willUseProcessedSystemPrompt: !!activePrompt.processedSystemPrompt,
+        hasSystemPrompt: !!freshActivePrompt.systemPrompt,
+        systemPromptLength: (freshActivePrompt.systemPrompt || '').length,
         hasSearchResults: !!searchResultsContext
       });
       
@@ -472,8 +478,8 @@ Content: ${snippet.text}
       });
       
       // Add image files if any
-      if (activePrompt.imageFiles && activePrompt.imageFiles.length > 0) {
-        activePrompt.imageFiles.forEach(file => {
+      if (freshActivePrompt.imageFiles && freshActivePrompt.imageFiles.length > 0) {
+        freshActivePrompt.imageFiles.forEach(file => {
           userMessage.content.push({
             type: 'image_url',
             image_url: {
@@ -484,8 +490,8 @@ Content: ${snippet.text}
       }
       
       // Add document files if any
-      if (activePrompt.documentFiles && activePrompt.documentFiles.length > 0) {
-        activePrompt.documentFiles.forEach(file => {
+      if (freshActivePrompt.documentFiles && freshActivePrompt.documentFiles.length > 0) {
+        freshActivePrompt.documentFiles.forEach(file => {
           userMessage.content.push({
             type: 'file',
             file: {

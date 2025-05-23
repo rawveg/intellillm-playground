@@ -6,26 +6,55 @@ import { Loader2, X } from 'lucide-react'
 interface PromptAugmentationModalProps {
   onCancel: () => void
   userPrompt?: string
+  systemPrompt?: string
   onAugmentUserPrompt?: (userPrompt: string) => Promise<void>
+  onAugmentSystemPrompt?: (systemPrompt: string) => Promise<void>
 }
 
 export function PromptAugmentationModal({ 
   onCancel,
   userPrompt,
-  onAugmentUserPrompt
+  systemPrompt,
+  onAugmentUserPrompt,
+  onAugmentSystemPrompt
 }: PromptAugmentationModalProps) {
   const [isAugmenting, setIsAugmenting] = useState(false)
+  const [augmentingType, setAugmentingType] = useState<'user' | 'system' | null>(null)
 
   const handleUserPromptClick = async () => {
     if (!onAugmentUserPrompt || !userPrompt) return
     
     setIsAugmenting(true)
+    setAugmentingType('user')
     try {
       await onAugmentUserPrompt(userPrompt)
     } catch (error) {
       console.error('Error augmenting user prompt:', error)
     } finally {
       setIsAugmenting(false)
+      setAugmentingType(null)
+      onCancel()
+    }
+  }
+
+  const handleSystemPromptClick = async () => {
+    if (!onAugmentSystemPrompt) return
+    
+    // Check if system prompt is empty and show alert if it is
+    if (!systemPrompt || systemPrompt.trim() === '') {
+      alert('There is no system prompt to enhance.')
+      return
+    }
+    
+    setIsAugmenting(true)
+    setAugmentingType('system')
+    try {
+      await onAugmentSystemPrompt(systemPrompt)
+    } catch (error) {
+      console.error('Error augmenting system prompt:', error)
+    } finally {
+      setIsAugmenting(false)
+      setAugmentingType(null)
       onCancel()
     }
   }
@@ -52,13 +81,15 @@ export function PromptAugmentationModal({
             disabled={isAugmenting || !userPrompt}
           >
             <span>User Prompt</span>
-            {isAugmenting && <Loader2 className="w-4 h-4 animate-spin" />}
+            {isAugmenting && augmentingType === 'user' && <Loader2 className="w-4 h-4 animate-spin" />}
           </button>
           <button 
-            className="w-full py-3 px-4 bg-gray-100 dark:bg-gray-700 rounded text-left font-medium hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors"
+            className="w-full py-3 px-4 bg-gray-100 dark:bg-gray-700 rounded text-left font-medium hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors flex justify-between items-center"
+            onClick={handleSystemPromptClick}
             disabled={isAugmenting}
           >
-            System Prompt
+            <span>System Prompt</span>
+            {isAugmenting && augmentingType === 'system' && <Loader2 className="w-4 h-4 animate-spin" />}
           </button>
           <button 
             className="w-full py-3 px-4 bg-gray-100 dark:bg-gray-700 rounded text-left font-medium hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors"

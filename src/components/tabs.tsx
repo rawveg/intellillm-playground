@@ -271,8 +271,15 @@ export function Tabs() {
       return;
     }
 
+    // Reset processedSystemPrompt to ensure web search works consistently
+    // This ensures we always start with a clean state for this execution
     setTabs(tabs.map(tab =>
-      tab.id === activeTab ? { ...tab, isLoading: true, result: undefined } : tab
+      tab.id === activeTab ? { 
+        ...tab, 
+        isLoading: true, 
+        result: undefined,
+        processedSystemPrompt: undefined // Clear any stale processedSystemPrompt
+      } : tab
     ));
 
     let searchResultsContext = '';
@@ -431,6 +438,15 @@ Content: ${snippet.text}
 
       // Use processedSystemPrompt if available (for parameter substitution), otherwise use the original systemPrompt
       let finalSystemPrompt = activePrompt.processedSystemPrompt || activePrompt.systemPrompt || '';
+      console.log('[executePrompt] System prompt state:', { 
+        hasSystemPrompt: !!activePrompt.systemPrompt,
+        hasProcessedSystemPrompt: !!activePrompt.processedSystemPrompt,
+        systemPromptLength: (activePrompt.systemPrompt || '').length,
+        processedSystemPromptLength: (activePrompt.processedSystemPrompt || '').length,
+        willUseProcessedSystemPrompt: !!activePrompt.processedSystemPrompt,
+        hasSearchResults: !!searchResultsContext
+      });
+      
       if (searchResultsContext) {
         if (finalSystemPrompt.trim() !== '') {
           // Prepend search results, then a separator, then the original system prompt
@@ -626,13 +642,15 @@ Content: ${snippet.text}
       const displayName = promptPath.split('/').pop() || promptPath
       
       // Update the tab with new name, path, and metadata
+      // Also ensure processedSystemPrompt is cleared to avoid stale state
       setTabs(tabs.map(tab =>
         tab.id === activeTab ? {
           ...tab,
           name: displayName,
           path: promptPath, // Store full path
           metadata,
-          systemPrompt: activePrompt.systemPrompt // Preserve system prompt
+          systemPrompt: activePrompt.systemPrompt, // Preserve system prompt
+          processedSystemPrompt: undefined // Ensure clean state for web search
         } : tab
       ))
 
@@ -833,7 +851,8 @@ Content: ${snippet.text}
             tab.id === existingTab.id ? { 
               ...tab, 
               metadata: p.metadata,
-              path: p.path // Store full path
+              path: p.path, // Store full path
+              processedSystemPrompt: undefined // Ensure clean state for web search
             } : tab
           ))
           tabIds.push(existingTab.id);
@@ -845,6 +864,7 @@ Content: ${snippet.text}
             name: displayName,
             content: p.content,
             systemPrompt: p.systemPrompt,
+            processedSystemPrompt: undefined, // Ensure clean state for web search
             metadata: p.metadata,
             path: p.path, // Store full path
           });
@@ -906,7 +926,8 @@ Content: ${snippet.text}
         tab.id === existingTab.id ? { 
           ...tab, 
           metadata: prompt.metadata,
-          path: prompt.path // Store full path
+          path: prompt.path, // Store full path
+          processedSystemPrompt: undefined // Ensure clean state for web search
         } : tab
       ))
       setActiveTab(existingTab.id)
@@ -918,6 +939,7 @@ Content: ${snippet.text}
         name: displayName,
         content: prompt.content,
         systemPrompt: prompt.systemPrompt,
+        processedSystemPrompt: undefined, // Ensure clean state for web search
         metadata: prompt.metadata,
         path: prompt.path, // Store full path
       }])
@@ -1014,6 +1036,74 @@ Content: ${snippet.text}
     }
   };
 
+  // Function to augment system prompt using API
+  const augmentSystemPrompt = async (systemPrompt: string) => {
+    try {
+      const apiKey = localStorage.getItem('openrouter_api_key');
+      if (!apiKey) {
+        throw new Error('API key not found. Please add your OpenRouter API key in settings.');
+      }
+
+      const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2';
+      const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}');
+
+      // Create the meta-prompt for system prompt augmentation
+      const metaPrompt = "Please augment and elaborate this system prompt. Provide only the improved system prompt without any commentary, explanation, or additional text. The output should be just the enhanced system prompt that can be used directly:\n\n" + systemPrompt;
+      
+      const messages = [
+        { role: 'user', content: metaPrompt }
+      ];
+
+      // Call the API with the meta-prompt
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + apiKey,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages,
+          ...modelConfig
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error("API Error: " + (errorData.error?.message || 'Unknown error'));
+      }
+
+      const data = await response.json();
+      
+      // Extract the augmented system prompt from the response
+      let augmentedSystemPrompt = '';
+      if (data.choices && Array.isArray(data.choices) && data.choices.length > 0 && data.choices[0]?.message?.content) {
+        augmentedSystemPrompt = data.choices[0].message.content;
+      } else if (data.message?.content) {
+        augmentedSystemPrompt = data.message.content;
+      } else if (data.content) {
+        augmentedSystemPrompt = data.content;
+      } else {
+        throw new Error('Could not extract content from API response');
+      }
+
+      // Update only the systemPrompt and explicitly clear processedSystemPrompt
+      // This ensures web search functionality can properly add search context to the system prompt
+      setTabs(tabs.map(tab =>
+        tab.id === activeTab ? { 
+          ...tab, 
+          systemPrompt: augmentedSystemPrompt,
+          processedSystemPrompt: undefined // Explicitly clear to avoid any stale state
+        } : tab
+      ));
+
+    } catch (error) {
+      console.error('Error augmenting system prompt:', error);
+      alert(`Failed to augment system prompt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error; // Re-throw to allow the modal to handle the error state
+    }
+  };
 
 
   // Function to augment user prompt using API
@@ -1299,7 +1389,9 @@ Content: ${snippet.text}
         <PromptAugmentationModal
           onCancel={() => setShowPromptAugmentationModal(false)}
           userPrompt={activePrompt?.content}
+          systemPrompt={activePrompt?.systemPrompt}
           onAugmentUserPrompt={augmentUserPrompt}
+          onAugmentSystemPrompt={augmentSystemPrompt}
         />
       )}
     </div>

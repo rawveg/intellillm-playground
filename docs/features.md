@@ -97,6 +97,19 @@ A web search feature that works **without** function calling, allowing **any** m
 
 See [Web Search Integration](./web-search.md) for detailed information.
 
+## ✨ Prompt Augmentation
+
+Prompt Augmentation uses AI to enhance your prompts automatically, making them more detailed and effective:
+
+- **User Prompt Augmentation**: Improves the clarity and completeness of your main prompt
+- **System Prompt Augmentation**: Enhances system instructions for better AI guidance
+- **All Prompts**: One-click enhancement of both user and system prompts in sequence
+- **Contextual Enhancement**: AI analyzes your prompt and adds relevant details that you might have missed
+- **Preserves Intent**: Maintains your original purpose while adding helpful specificity
+- **Intuitive Modal Interface**: Simple, accessible popup with clear options
+
+The feature is designed to help both beginners and experienced users create more effective prompts with minimal effort, especially useful when you need to quickly improve a basic prompt without spending time on manual refinement.
+
 ## 📎 File Attachments
 
 IntelliLLM Playground supports uploading files alongside your prompts:

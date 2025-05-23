@@ -648,6 +648,7 @@ Content: ${snippet.text}
     }
   }
 
+  // Function to augment user prompt using the current model and settings
   const exportResult = () => {
     const activePrompt = tabs.find(tab => tab.id === activeTab)
     if (!activePrompt?.result) return
@@ -949,6 +950,74 @@ Content: ${snippet.text}
 
   const activePrompt = tabs.find(tab => tab.id === activeTab)
 
+  // Function to augment user prompt using API
+  const augmentUserPrompt = async (userPrompt: string) => {
+    try {
+      const apiKey = localStorage.getItem('openrouter_api_key');
+      if (!apiKey) {
+        throw new Error('API key not found. Please add your OpenRouter API key in settings.');
+      }
+
+      const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2';
+      const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}');
+
+      // Create the meta-prompt for augmentation
+      const metaPrompt = "Please augment and elaborate this prompt. Provide only the improved prompt without any commentary, explanation, or additional text. The output should be just the enhanced prompt that can be used directly:\n\n" + userPrompt;
+      
+      const messages = [
+        { role: 'user', content: metaPrompt }
+      ];
+
+      // Call the API with the meta-prompt
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + apiKey,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages,
+          ...modelConfig
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error("API Error: " + (errorData.error?.message || 'Unknown error'));
+      }
+
+      const data = await response.json();
+      
+      // Extract the augmented prompt from the response
+      let augmentedPrompt = '';
+      if (data.choices && Array.isArray(data.choices) && data.choices.length > 0 && data.choices[0]?.message?.content) {
+        augmentedPrompt = data.choices[0].message.content;
+      } else if (data.message?.content) {
+        augmentedPrompt = data.message.content;
+      } else if (data.content) {
+        augmentedPrompt = data.content;
+      } else {
+        throw new Error('Could not extract content from API response');
+      }
+
+      // Update the tab with the augmented prompt
+      setTabs(tabs.map(tab =>
+        tab.id === activeTab ? { ...tab, content: augmentedPrompt } : tab
+      ));
+
+    } catch (error) {
+      console.error('Error augmenting user prompt:', error);
+      alert(`Failed to augment prompt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error; // Re-throw to allow the modal to handle the error state
+    }
+  };
+
+
+
+  // Function to augment user prompt using API
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center border-b px-2 bg-background relative z-10">
@@ -1229,6 +1298,8 @@ Content: ${snippet.text}
       {showPromptAugmentationModal && (
         <PromptAugmentationModal
           onCancel={() => setShowPromptAugmentationModal(false)}
+          userPrompt={activePrompt?.content}
+          onAugmentUserPrompt={augmentUserPrompt}
         />
       )}
     </div>

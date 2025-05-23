@@ -1066,9 +1066,13 @@ Content: ${snippet.text}
         throw new Error('Could not extract content from API response');
       }
 
-      // Update the tab with the augmented system prompt
+      // Update the tab with the augmented system prompt and also update processedSystemPrompt
       setTabs(tabs.map(tab =>
-        tab.id === activeTab ? { ...tab, systemPrompt: augmentedSystemPrompt } : tab
+        tab.id === activeTab ? { 
+          ...tab, 
+          systemPrompt: augmentedSystemPrompt,
+          processedSystemPrompt: augmentedSystemPrompt
+        } : tab
       ));
 
     } catch (error) {

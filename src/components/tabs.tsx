@@ -1025,9 +1025,12 @@ Content: ${snippet.text}
       }
 
       // Update the tab with the augmented prompt
-      setTabs(tabs.map(tab =>
+      setTabs(prevTabs => prevTabs.map(tab =>
         tab.id === activeTab ? { ...tab, content: augmentedPrompt } : tab
       ));
+      
+      // Return the augmented prompt in case it needs to be used further
+      return augmentedPrompt;
 
     } catch (error) {
       console.error('Error augmenting user prompt:', error);
@@ -1088,15 +1091,18 @@ Content: ${snippet.text}
         throw new Error('Could not extract content from API response');
       }
 
-      // Update only the systemPrompt and explicitly clear processedSystemPrompt
-      // This ensures web search functionality can properly add search context to the system prompt
-      setTabs(tabs.map(tab =>
+      // Use functional state update to ensure we're working with the latest state
+      // This is especially important for the "All Prompts" feature where both prompts are updated
+      setTabs(prevTabs => prevTabs.map(tab =>
         tab.id === activeTab ? { 
           ...tab, 
           systemPrompt: augmentedSystemPrompt,
           processedSystemPrompt: undefined // Explicitly clear to avoid any stale state
         } : tab
       ));
+
+      // Return the augmented system prompt in case it needs to be used further
+      return augmentedSystemPrompt;
 
     } catch (error) {
       console.error('Error augmenting system prompt:', error);

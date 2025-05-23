@@ -7,8 +7,8 @@ interface PromptAugmentationModalProps {
   onCancel: () => void
   userPrompt?: string
   systemPrompt?: string
-  onAugmentUserPrompt?: (userPrompt: string) => Promise<void>
-  onAugmentSystemPrompt?: (systemPrompt: string) => Promise<void>
+  onAugmentUserPrompt?: (userPrompt: string) => Promise<string | void>
+  onAugmentSystemPrompt?: (systemPrompt: string) => Promise<string | void>
 }
 
 export function PromptAugmentationModal({ 
@@ -76,10 +76,12 @@ export function PromptAugmentationModal({
     setIsAugmenting(true)
     setAugmentingType('all')
     try {
-      // First augment the user prompt
-      await onAugmentUserPrompt(userPrompt)
+      // First augment the user prompt and store the result
+      const userPromptResult = await onAugmentUserPrompt(userPrompt)
       
       // Then augment the system prompt
+      // The onAugmentSystemPrompt function should be able to
+      // retrieve the updated user prompt state internally
       await onAugmentSystemPrompt(systemPrompt)
     } catch (error) {
       console.error('Error augmenting prompts:', error)

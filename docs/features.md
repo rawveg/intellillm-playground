@@ -57,6 +57,16 @@ The Prompt Library offers comprehensive organization features to help you manage
 - **Import from GitHub Gists**: Import prompts from public Gists by entering the URL
 - **GitHub Authentication**: Use GitHub Personal Access Tokens for creating Gists
 
+## ✨ Prompt Augmentation
+
+The Prompt Augmentation feature uses AI to help improve your prompts:
+
+- **Magic Sparkle Button**: Access prompt augmentation functionality from the main toolbar
+- **User Prompt Enhancement**: Automatically improve and elaborate your user prompt
+- **System Prompt Enhancement**: Enhance your system prompt for better results
+- **All Prompts**: Optimize both user and system prompts at once
+- **Uses Current Model**: Leverages your currently selected model for augmentation
+
 ## ▶️ Direct Execution
 
 The Run button feature lets you execute prompts directly from the library:
@@ -86,6 +96,16 @@ Prompt parameters transform your templates into interactive mini-applications. U
 <img width="797" alt="Parameter Example" src="https://github.com/user-attachments/assets/1bb730f5-1189-4eac-86b1-b479a992f686" />
 
 See [Prompt Parameters](./parameters.md) for detailed information.
+
+## ✨ Prompt Augmentation
+
+The Prompt Augmentation feature uses AI to help improve your prompts:
+
+- **Magic Sparkle Button**: Access prompt augmentation functionality from the main toolbar
+- **User Prompt Enhancement**: Automatically improve and elaborate your user prompt
+- **System Prompt Enhancement**: Enhance your system prompt for better results
+- **All Prompts**: Optimize both user and system prompts at once
+- **Uses Current Model**: Leverages your currently selected model for augmentation
 
 ## 🧠 Web Search Augmentation
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Editor } from './editor'
-import { Plus, X, Save, FileDown, Upload, Play, Loader2, Image, FileText, Copy } from 'lucide-react'
+import { Plus, X, Save, FileDown, Upload, Play, Loader2, Image, FileText, Copy, Sparkles } from 'lucide-react'
 import * as YAML from 'yaml'
 import { PromptLibrary } from './prompt-library'
 import * as RadixTabs from '@radix-ui/react-tabs';
@@ -11,6 +11,7 @@ import { estimateTokens, getModelContextLimit } from '@/lib/tokenUtils';
 import { extractParameters, replaceParameters, ParameterInfo, extractParameterNames } from '@/lib/parameterUtils';
 import { ParameterModal } from './parameter-modal';
 import { SaveAsModal } from './save-as-modal';
+import { PromptAugmentationModal } from './prompt-augmentation-modal';
 import type { PromptFile } from '@/lib/promptUtils'
 
 interface Tab {
@@ -77,6 +78,10 @@ export function Tabs() {
 
   // Copy feedback state
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
+  
+  // Prompt augmentation modal state
+  const [showAugmentModal, setShowAugmentModal] = useState(false);
+  const [isAugmenting, setIsAugmenting] = useState(false);
 
   // Update model and settings when active tab changes
   const updateModelSettings = (tabId: string) => {
@@ -580,6 +585,264 @@ Content: ${snippet.text}
     // Show the SaveAsModal instead of using window.prompt
     setShowSaveAsModal(true)
   }
+  
+  // Helper function for prompt augmentation
+  const getPromptAugmentationHeaders = (apiKey: string) => {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `******      'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
+      'X-Title': 'IntelliLLM Playground - Prompt Augmentation'
+    };
+  };
+  
+  // Augment the user prompt only
+  const augmentUserPrompt = async () => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt) return;
+
+    try {
+      setIsAugmenting(true);
+      
+      const openrouterApiKey = localStorage.getItem('openrouter_api_key');
+      if (!openrouterApiKey) {
+        throw new Error('API key not found. Please add your OpenRouter API key in settings.');
+      }
+
+      const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2';
+      const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}');
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `******          'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
+          'X-Title': 'IntelliLLM Playground - Prompt Augmentation'
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { 
+              role: 'system', 
+              content: 'You are an expert at improving and refining prompts. When given a prompt, augment and elaborate it to make it more effective, clearer, and more likely to produce the desired results. Do not include any commentary, explanations, or anything else other than the improved prompt itself. Only return the augmented prompt, nothing more.' 
+            },
+            { 
+              role: 'user', 
+              content: `Please augment and elaborate this prompt:\n\n${activePrompt.content}` 
+            }
+          ],
+          ...modelConfig
+        })
+      });
+
+      const data = await response.json();
+      
+      // Extract the augmented prompt from the response
+      let augmentedPrompt = '';
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        augmentedPrompt = data.choices[0].message.content;
+      } else if (data.message) {
+        augmentedPrompt = data.message.content;
+      } else if (data.content) {
+        augmentedPrompt = data.content;
+      } else {
+        throw new Error('Failed to augment prompt. Unexpected API response format.');
+      }
+      
+      // Update the tab with the augmented prompt
+      setTabs(tabs.map(tab =>
+        tab.id === activeTab ? { ...tab, content: augmentedPrompt } : tab
+      ));
+      
+      setShowAugmentModal(false);
+    } catch (error) {
+      console.error('Failed to augment user prompt:', error);
+      alert(`Failed to augment user prompt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAugmenting(false);
+    }
+  };
+
+  // Augment the system prompt only
+  const augmentSystemPrompt = async () => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt || !activePrompt.systemPrompt) {
+      alert('No system prompt available to augment.');
+      return;
+    }
+
+    try {
+      setIsAugmenting(true);
+      
+      const openrouterApiKey = localStorage.getItem('openrouter_api_key');
+      if (!openrouterApiKey) {
+        throw new Error('API key not found. Please add your OpenRouter API key in settings.');
+      }
+
+      const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2';
+      const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}');
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `******          'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
+          'X-Title': 'IntelliLLM Playground - Prompt Augmentation'
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { 
+              role: 'system', 
+              content: 'You are an expert at improving and refining system prompts. When given a system prompt, augment and elaborate it to make it more effective, clearer, and more likely to produce the desired results. Do not include any commentary, explanations, or anything else other than the improved prompt itself. Only return the augmented prompt, nothing more.' 
+            },
+            { 
+              role: 'user', 
+              content: `Please augment and elaborate this system prompt:\n\n${activePrompt.systemPrompt}` 
+            }
+          ],
+          ...modelConfig
+        })
+      });
+
+      const data = await response.json();
+      
+      // Extract the augmented prompt from the response
+      let augmentedSystemPrompt = '';
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        augmentedSystemPrompt = data.choices[0].message.content;
+      } else if (data.message) {
+        augmentedSystemPrompt = data.message.content;
+      } else if (data.content) {
+        augmentedSystemPrompt = data.content;
+      } else {
+        throw new Error('Failed to augment system prompt. Unexpected API response format.');
+      }
+      
+      // Update the tab with the augmented system prompt
+      setTabs(tabs.map(tab =>
+        tab.id === activeTab ? { ...tab, systemPrompt: augmentedSystemPrompt } : tab
+      ));
+      
+      setShowAugmentModal(false);
+    } catch (error) {
+      console.error('Failed to augment system prompt:', error);
+      alert(`Failed to augment system prompt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAugmenting(false);
+    }
+  };
+
+  // Augment both user and system prompts
+  const augmentAllPrompts = async () => {
+    const activePrompt = tabs.find(tab => tab.id === activeTab);
+    if (!activePrompt) return;
+
+    try {
+      setIsAugmenting(true);
+      
+      const openrouterApiKey = localStorage.getItem('openrouter_api_key');
+      if (!openrouterApiKey) {
+        throw new Error('API key not found. Please add your OpenRouter API key in settings.');
+      }
+
+      const selectedModel = localStorage.getItem('selected_model') || 'anthropic/claude-2';
+      const modelConfig = JSON.parse(localStorage.getItem('model_config') || '{}');
+
+      // Augment user prompt
+      const userPromptResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `******          'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
+          'X-Title': 'IntelliLLM Playground - Prompt Augmentation'
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { 
+              role: 'system', 
+              content: 'You are an expert at improving and refining prompts. When given a prompt, augment and elaborate it to make it more effective, clearer, and more likely to produce the desired results. Do not include any commentary, explanations, or anything else other than the improved prompt itself. Only return the augmented prompt, nothing more.' 
+            },
+            { 
+              role: 'user', 
+              content: `Please augment and elaborate this prompt:\n\n${activePrompt.content}` 
+            }
+          ],
+          ...modelConfig
+        })
+      });
+
+      const userPromptData = await userPromptResponse.json();
+      
+      // Extract the augmented user prompt from the response
+      let augmentedUserPrompt = '';
+      if (userPromptData.choices && userPromptData.choices[0] && userPromptData.choices[0].message) {
+        augmentedUserPrompt = userPromptData.choices[0].message.content;
+      } else if (userPromptData.message) {
+        augmentedUserPrompt = userPromptData.message.content;
+      } else if (userPromptData.content) {
+        augmentedUserPrompt = userPromptData.content;
+      } else {
+        throw new Error('Failed to augment user prompt. Unexpected API response format.');
+      }
+      
+      // Augment system prompt if it exists
+      let augmentedSystemPrompt = activePrompt.systemPrompt;
+      if (activePrompt.systemPrompt) {
+        const systemPromptResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `******            'HTTP-Referer': typeof window !== 'undefined' ? window.location.host : 'localhost',
+            'X-Title': 'IntelliLLM Playground - Prompt Augmentation'
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: [
+              { 
+                role: 'system', 
+                content: 'You are an expert at improving and refining system prompts. When given a system prompt, augment and elaborate it to make it more effective, clearer, and more likely to produce the desired results. Do not include any commentary, explanations, or anything else other than the improved prompt itself. Only return the augmented prompt, nothing more.' 
+              },
+              { 
+                role: 'user', 
+                content: `Please augment and elaborate this system prompt:\n\n${activePrompt.systemPrompt}` 
+              }
+            ],
+            ...modelConfig
+          })
+        });
+
+        const systemPromptData = await systemPromptResponse.json();
+        
+        // Extract the augmented system prompt from the response
+        if (systemPromptData.choices && systemPromptData.choices[0] && systemPromptData.choices[0].message) {
+          augmentedSystemPrompt = systemPromptData.choices[0].message.content;
+        } else if (systemPromptData.message) {
+          augmentedSystemPrompt = systemPromptData.message.content;
+        } else if (systemPromptData.content) {
+          augmentedSystemPrompt = systemPromptData.content;
+        } else {
+          throw new Error('Failed to augment system prompt. Unexpected API response format.');
+        }
+      }
+      
+      // Update the tab with both augmented prompts
+      setTabs(tabs.map(tab =>
+        tab.id === activeTab ? { 
+          ...tab, 
+          content: augmentedUserPrompt,
+          systemPrompt: augmentedSystemPrompt 
+        } : tab
+      ));
+      
+      setShowAugmentModal(false);
+    } catch (error) {
+      console.error('Failed to augment prompts:', error);
+      alert(`Failed to augment prompts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAugmenting(false);
+    }
+  }
 
   // Handle the actual save operation after path selection in modal
   const handleSaveAs = async (promptPath: string) => {
@@ -1012,6 +1275,14 @@ Content: ${snippet.text}
           </button>
           <button
             className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
+            onClick={() => setShowAugmentModal(true)}
+            title="Augment Prompts"
+            disabled={activePrompt?.isLoading || activePrompt?.isLibrary}
+          >
+            <Sparkles className="w-5 h-5" />
+          </button>
+          <button
+            className="p-2 hover:text-blue-600 dark:hover:text-blue-400"
             onClick={savePrompt}
             title="Save Prompt"
           >
@@ -1211,6 +1482,17 @@ Content: ${snippet.text}
           initialName={tabs.find(tab => tab.id === activeTab)?.name || ''}
           onSave={handleSaveAs}
           onCancel={() => setShowSaveAsModal(false)}
+        />
+      )}
+
+      {/* Prompt Augmentation Modal */}
+      {showAugmentModal && (
+        <PromptAugmentationModal
+          onClose={() => setShowAugmentModal(false)}
+          onAugmentUserPrompt={augmentUserPrompt}
+          onAugmentSystemPrompt={augmentSystemPrompt}
+          onAugmentAllPrompts={augmentAllPrompts}
+          isLoading={isAugmenting}
         />
       )}
     </div>

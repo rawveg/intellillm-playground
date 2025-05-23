@@ -30,6 +30,7 @@ IntelliLLM Playground is a powerful, modern tool for prompt engineers, data scie
 - 🤖 **LLM Integration**: Supports all OpenRouter models with dynamic per-prompt configuration
 - 📂 **Prompt Management**: Import/export prompts, folder organization, and GitHub Gist integration
 - 🔄 **Prompt Parametrization**: Create template prompts with `{{ParameterName}}` syntax
+- ✨ **Prompt Augmentation**: Use AI to enhance your prompts automatically, making them more detailed and effective.
 - 🧠 **Web Search Augmentation**: Real-time web search for **all** models via DuckDuckGo for up-to-date information
 - 📎 **File Attachments**: Upload images and documents to include with your prompts
 - 🐳 **Dockerized**: Easy to build, run, and deploy anywhere

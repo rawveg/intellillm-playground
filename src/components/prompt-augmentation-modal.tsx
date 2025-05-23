@@ -7,8 +7,8 @@ interface PromptAugmentationModalProps {
   onCancel: () => void
   userPrompt?: string
   systemPrompt?: string
-  onAugmentUserPrompt?: (userPrompt: string) => Promise<void>
-  onAugmentSystemPrompt?: (systemPrompt: string) => Promise<void>
+  onAugmentUserPrompt?: (userPrompt: string) => Promise<string | void>
+  onAugmentSystemPrompt?: (systemPrompt: string) => Promise<string | void>
 }
 
 export function PromptAugmentationModal({ 
@@ -19,7 +19,7 @@ export function PromptAugmentationModal({
   onAugmentSystemPrompt
 }: PromptAugmentationModalProps) {
   const [isAugmenting, setIsAugmenting] = useState(false)
-  const [augmentingType, setAugmentingType] = useState<'user' | 'system' | null>(null)
+  const [augmentingType, setAugmentingType] = useState<'user' | 'system' | 'all' | null>(null)
 
   const handleUserPromptClick = async () => {
     if (!onAugmentUserPrompt || !userPrompt) return
@@ -52,6 +52,39 @@ export function PromptAugmentationModal({
       await onAugmentSystemPrompt(systemPrompt)
     } catch (error) {
       console.error('Error augmenting system prompt:', error)
+    } finally {
+      setIsAugmenting(false)
+      setAugmentingType(null)
+      onCancel()
+    }
+  }
+
+  const handleAllPromptsClick = async () => {
+    if (!onAugmentUserPrompt || !userPrompt) {
+      alert('There is no user prompt to enhance.')
+      return
+    }
+
+    if (!onAugmentSystemPrompt) return
+    
+    // Check if system prompt is empty and show alert if it is
+    if (!systemPrompt || systemPrompt.trim() === '') {
+      alert('There is no system prompt to enhance.')
+      return
+    }
+    
+    setIsAugmenting(true)
+    setAugmentingType('all')
+    try {
+      // First augment the user prompt and store the result
+      const userPromptResult = await onAugmentUserPrompt(userPrompt)
+      
+      // Then augment the system prompt
+      // The onAugmentSystemPrompt function should be able to
+      // retrieve the updated user prompt state internally
+      await onAugmentSystemPrompt(systemPrompt)
+    } catch (error) {
+      console.error('Error augmenting prompts:', error)
     } finally {
       setIsAugmenting(false)
       setAugmentingType(null)
@@ -92,10 +125,12 @@ export function PromptAugmentationModal({
             {isAugmenting && augmentingType === 'system' && <Loader2 className="w-4 h-4 animate-spin" />}
           </button>
           <button 
-            className="w-full py-3 px-4 bg-gray-100 dark:bg-gray-700 rounded text-left font-medium hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors"
+            className="w-full py-3 px-4 bg-gray-100 dark:bg-gray-700 rounded text-left font-medium hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors flex justify-between items-center"
+            onClick={handleAllPromptsClick}
             disabled={isAugmenting}
           >
-            All Prompts
+            <span>All Prompts</span>
+            {isAugmenting && augmentingType === 'all' && <Loader2 className="w-4 h-4 animate-spin" />}
           </button>
         </div>
       </div>

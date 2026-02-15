@@ -3,11 +3,13 @@ import { loadPrompt, deleteItem, isDirectory, moveItem } from '@/lib/promptUtils
 
 export async function GET(
   request: Request,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
+    // Await params in Next.js 16
+    const { name } = await params
     // Decode the name parameter which might contain slashes for paths
-    const decodedName = decodeURIComponent(params.name)
+    const decodedName = decodeURIComponent(name)
     
     const prompt = await loadPrompt(decodedName)
     return NextResponse.json(prompt)
@@ -19,11 +21,13 @@ export async function GET(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
+    // Await params in Next.js 16
+    const { name } = await params
     // Decode the name parameter
-    const decodedName = decodeURIComponent(params.name)
+    const decodedName = decodeURIComponent(name)
     
     await deleteItem(decodedName)
     return NextResponse.json({ success: true })
@@ -35,11 +39,13 @@ export async function DELETE(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
+    // Await params in Next.js 16
+    const { name } = await params
     // Decode the source path
-    const sourcePath = decodeURIComponent(params.name)
+    const sourcePath = decodeURIComponent(name)
     
     // Get destination path from request body
     const { destinationPath } = await request.json()
